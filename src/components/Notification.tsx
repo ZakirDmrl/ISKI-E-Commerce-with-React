@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux';
 import type { RootState } from '../store/store';
 
 const Notification = () => {
+	// Redux store'dan notification state'ini al
 	const notification = useSelector((state: RootState) => state.notification);
 
 	if (!notification.message) {

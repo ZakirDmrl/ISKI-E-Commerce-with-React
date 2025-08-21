@@ -5,12 +5,12 @@ import cartReducer from './cartSlice';
 import notificationReducer from './notificationSlice';
 import authReducer from './authSlice';
 export const store = configureStore({
-  reducer: {
-    products: productReducer,
-    cart: cartReducer,
-    notification: notificationReducer,
-	 auth: authReducer,
-  },
+	reducer: {
+		products: productReducer,
+		cart: cartReducer,
+		notification: notificationReducer,
+		auth: authReducer,
+	},
 });
 
 export type RootState = ReturnType<typeof store.getState>;

@@ -6,6 +6,8 @@ import type { CartItem, Product } from '../types';
 export interface CartContextType {
   cartItems: CartItem[];
   addToCart: (product: Product) => void;
+  decrementQuantity: (productId: number) => void;
+  removeFromCart: (productId: number) => void;
   // Diğer fonksiyonlar buraya eklenebilir.
 }
 

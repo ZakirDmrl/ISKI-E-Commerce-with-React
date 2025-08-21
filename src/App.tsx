@@ -28,33 +28,33 @@ const App: React.FC = () => {
 	useEffect(() => {
 		// Sadece uygulama ilk yüklendiğinde çalışacak kodlar ya da [] içindeki değerler değiştiğinde bu kodda dispatch çalışacak kodlar
 		// migrateProducts(); // Fake API'den ürün verilerini Supabase'e aktarır
-		const {data: {subscription}} = supabase.auth.onAuthStateChange((_event, session) => {
+		const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
 			dispatch(setUser(session?.user ?? null)) // Kullanıcı oturum durumu değiştiğinde kullanıcıyı(state) güncelle
 		});
 		// Bileşen ayrıldığında listener'ı temizle
 		return () => subscription.unsubscribe();
 	}, [dispatch]);
-	 return (
-        <>
-            <Navbar />
-            <Notification />
-            <div style={{ backgroundColor: '#212121', color: '#fff', minHeight: '100vh', minWidth: '210vh' }}>
-                <div className="container" style={{ padding: '20px' }}>
-                <Routes>
-                        {/* Giriş sayfasına herkes erişebilsin */}
-                        <Route path="/auth" element={<AuthPage />} />
+	return (
+		<>
+			<Navbar />
+			<Notification />
+			<div style={{ backgroundColor: '#212121', color: '#fff', minHeight: '100vh', minWidth: '210vh' }}>
+				<div className="container" style={{ padding: '20px' }}>
+					<Routes>
+						{/* Giriş sayfasına herkes erişebilsin */}
+						<Route path="/auth" element={<AuthPage />} />
 
-                        {/* Korunan rotalar */}
-                        <Route element={<PrivateRoute />}>
-                            <Route path="/" element={<HomePage />} />
-                            <Route path="/cart" element={<CartPage />} />
-                            <Route path="/product/:id" element={<ProductDetail />} />
-                        </Route>
-                    </Routes>
-                </div>
-            </div>
-        </>
-    );
+						{/* Korunan rotalar */}
+						<Route element={<PrivateRoute />}>
+							<Route path="/" element={<HomePage />} />
+							<Route path="/cart" element={<CartPage />} />
+							<Route path="/product/:productId" element={<ProductDetail />} />
+						</Route>
+					</Routes>
+				</div>
+			</div>
+		</>
+	);
 };
 
 export default App;
