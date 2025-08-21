@@ -4,7 +4,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import type { RootState, AppDispatch } from '../store/store';
 import { fetchCartItems, decrementCartItemQuantity, removeCartItem } from '../store/cartSlice';
-import { setNotification } from '../store/notificationSlice';
+import { setNotification, clearNotification } from '../store/notificationSlice';
 
 const CartPage = () => {
     const dispatch = useDispatch<AppDispatch>();
@@ -36,9 +36,11 @@ const CartPage = () => {
                 } else {
                     dispatch(setNotification({ message: `${item.title} sepetten kaldırıldı.`, type: 'error' }));
                 }
+                setTimeout(() => dispatch(clearNotification()), 3000);
             })
             .catch((err) => {
                 dispatch(setNotification({ message: `Ürün miktarını azaltırken hata oluştu: ${err.message}`, type: 'error' }));
+                setTimeout(() => dispatch(clearNotification()), 3000);
             });
     };
 
@@ -49,9 +51,11 @@ const CartPage = () => {
             .unwrap()
             .then(() => {
                 dispatch(setNotification({ message: 'Ürün sepetten tamamen kaldırıldı.', type: 'error' }));
+                setTimeout(() => dispatch(clearNotification()), 3000);
             })
             .catch((err) => {
                 dispatch(setNotification({ message: `Ürün kaldırılırken hata oluştu: ${err.message}`, type: 'error' }));
+                setTimeout(() => dispatch(clearNotification()), 3000);
             });
     };
 
@@ -66,7 +70,7 @@ const CartPage = () => {
     return (
         <div style={{ padding: '20px' }}>
             <h1 style={{ textAlign: 'center', marginBottom: '20px' }}>Sepetim</h1>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
                 {cartItems.map((item) => (
                     <div key={item.id} style={{ 
                         border: '1px solid #ccc',
@@ -76,9 +80,19 @@ const CartPage = () => {
                         display: 'flex',
                         flexDirection: 'column',
                         justifyContent: 'space-between',
-                        height: '450px' // Sabit sepet kartı yüksekliği
+                        height: '450px', // Sabit sepet kartı yüksekliği
+                        boxSizing: 'border-box'
                     }}>
-                        <img src={item.image} alt={item.title} style={{ width: '100%', height: '200px', objectFit: 'contain', marginBottom: '10px' }} />
+                        <img 
+                            src={item.image} 
+                            alt={item.title} 
+                            style={{ 
+                                width: '100%', 
+                                height: '200px', 
+                                objectFit: 'contain', 
+                                marginBottom: '10px' 
+                            }} 
+                        />
                         <h3 style={{ height: '40px', overflow: 'hidden' }}>{item.title}</h3>
                         <p>Fiyat: <strong>{item.price} TL</strong></p>
                         <p>Adet: {item.quantity}</p>

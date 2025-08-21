@@ -6,10 +6,9 @@ import type { Product } from '../types';
 interface ProductCardProps {
     product: Product;
     onAddToCart: (product: Product) => void;
-    className?: string;
 }
 
-const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart, className }) => {
+const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
     const handleAddToCartClick = (e: React.MouseEvent<HTMLButtonElement>) => {
         e.preventDefault();
         e.stopPropagation();
@@ -18,23 +17,39 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart, classNa
 
     return (
         <Link to={`/product/${product.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-            <div className={className} style={{ 
+            <div style={{
                 border: '1px solid #ccc',
                 padding: '15px',
                 borderRadius: '5px',
-                textAlign: 'center',
                 display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-                height: '400px' // Sabit kutu yüksekliği
+                alignItems: 'center', // Öğeleri dikeyde ortala
+                gap: '20px', // Öğeler arasına boşluk ekle
+                boxSizing: 'border-box',
+                backgroundColor: 'rgba(255, 255, 255, 0.05)', // Hafif bir arka plan rengi
+                height: '250px' // Sabit kutu yüksekliği
             }}>
-                <img src={product.image} alt={product.title} style={{ width: '100%', height: '180px', objectFit: 'contain', marginBottom: '10px' }} />
-                <h3 style={{ height: '40px', overflow: 'hidden' }}>{product.title}</h3>
-                <p style={{ height: '60px', overflow: 'hidden' }}>{product.description.substring(0, 50)}...</p>
-                <p><strong>{product.price} TL</strong></p>
+                <img 
+                    src={product.image} 
+                    alt={product.title} 
+                    style={{ 
+                        width: '150px', // Resim genişliği
+                        height: '150px', // Resim yüksekliği
+                        objectFit: 'contain' // Resmin kutuya sığmasını sağlar
+                    }} 
+                />
+                <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, height: '100%', justifyContent: 'center' }}>
+                    <h3 style={{ margin: '0 0 10px 0', fontSize: '1.2em' }}>{product.title}</h3>
+                    <p style={{ margin: '0 0 10px 0', color: '#bbb' }}>{product.description.substring(0, 100)}...</p>
+                    <p style={{ margin: 0, fontWeight: 'bold', fontSize: '1.2em', color: '#fff' }}>{product.price} TL</p>
+                </div>
                 <button
                     onClick={handleAddToCartClick}
-                    style={{ padding: '8px 12px', cursor: 'pointer', width: '100%', height: '40px', marginTop: 'auto' }}
+                    style={{ 
+                        padding: '10px 20px', 
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap', // Buton metninin tek satırda kalmasını sağlar
+                        flexShrink: 0 // Butonun küçülmesini engelle
+                    }}
                 >
                     Sepete Ekle
                 </button>
@@ -43,4 +58,4 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart, classNa
     );
 };
 
-export default ProductCard;
+export default ProductCard;	
