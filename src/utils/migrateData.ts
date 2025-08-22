@@ -1,26 +1,37 @@
 // src/utils/migrateData.ts
-// Bu dosya, fake API'den ürün verilerini Supabase'e aktarmak için kullanılır.
 import { supabase } from '../supabaseClient';
-import type { Product } from '../types';
 
+// Fake Store API'den ürünleri çekme ve Supabase'e aktarma fonksiyonu
 export const migrateProducts = async () => {
     try {
-        // Fake API'den tüm ürünleri çek
         const response = await fetch('https://fakestoreapi.com/products');
-        const data: Product[] = await response.json();
+        if (!response.ok) {
+            throw new Error('API\'den veri alınamadı.');
+        }
+        const products = await response.json();
 
-        // Her bir ürünü Supabase'deki 'products' tablosuna ekle
+        const formattedProducts = products.map((product: any) => ({
+            // title, description, price, image ve category alanları aynı kalacak
+            title: product.title,
+            description: product.description,
+            price: product.price,
+            image: product.image,
+            category: product.category,
+            // Hata veren rating alanını düzeltiyoruz
+            rating: product.rating.rate,       // Sadece 'rate' değerini al
+            rating_count: product.rating.count // 'count' değerini al
+        }));
+
         const { error } = await supabase
             .from('products')
-            .insert(data);
+            .insert(formattedProducts);
 
         if (error) {
-            console.error('Veri aktarımında hata:', error.message);
-            return;
+            throw new Error(error.message);
         }
 
-        console.log('Veriler Supabase\'e başarıyla aktarıldı!');
-    } catch (error) {
-        console.error('Beklenmedik bir hata oluştu:', error);
+        console.log('Veri aktarımı başarıyla tamamlandı!');
+    } catch (error: any) {
+        console.error('Veri aktarımında hata:', error.message);
     }
 };

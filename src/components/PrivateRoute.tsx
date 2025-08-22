@@ -1,16 +1,38 @@
 // src/components/PrivateRoute.tsx
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import type { RootState } from '../store/store';
+import type { AppUser } from '../store/authSlice';
 
-const PrivateRoute = () => {
-	// Redux store'dan auth durumunu al
-	const { isAuthenticated } = useSelector((state: RootState) => state.auth);
+interface PrivateRouteProps {
+    isAdminRoute?: boolean;
+}
 
-	// Kullanıcı giriş yapmışsa, istenen sayfayı (Outlet) render et.
-	// Yapmamız gereken, eğer giriş yapılmamışsa AuthPage'e yönlendirmek.
-	return isAuthenticated ? <Outlet /> : <Navigate to="/auth" />;
+const PrivateRoute: React.FC<PrivateRouteProps> = ({ isAdminRoute }) => {
+    const { isAuthenticated, status, user } = useSelector((state: RootState) => state.auth);
+    const location = useLocation();
+    const [isReady, setIsReady] = useState(false);
+
+    useEffect(() => {
+        if (status === 'succeeded' || status === 'failed') {
+            setIsReady(true);
+        }
+    }, [status]);
+    
+    if (!isReady || status === 'loading') {
+        return <p style={{ textAlign: 'center', marginTop: '50px' }}>Yükleniyor...</p>;
+    }
+    
+    if (!isAuthenticated) {
+        return <Navigate to="/auth" state={{ from: location }} replace />;
+    }
+    
+    if (isAdminRoute && !(user as AppUser)?.isAdmin) {
+        return <Navigate to="/" replace />;
+    }
+    
+    return <Outlet />;
 };
 
 export default PrivateRoute;
