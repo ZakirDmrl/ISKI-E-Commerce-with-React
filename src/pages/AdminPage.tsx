@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import type { RootState } from '../store/store';
 import type { AppUser } from '../store/authSlice'; // AppUser tipini import et
 import AddProductForm from './AddProductForm';
+import ProductTable from '../components/ProductTable';
 // AppUser tipini import et
 
 const AdminPage: React.FC = () => {
@@ -29,13 +30,15 @@ const AdminPage: React.FC = () => {
 	}
 
 	return (
-		<div style={{ padding: '20px' }}>
-			<h1>Admin Paneli</h1>
-			<p>Burada ürünleri ve kategorileri yöneteceksiniz.</p>
-			<AddProductForm />
-
-		</div>
-	);
+        <div className="container mt-4">
+            <h1 className="text-white">Admin Paneli</h1>
+            <p className="text-secondary">Hoş geldin, burada ürünleri yönetebilirsin.</p>
+            <AddProductForm />
+            <hr style={{ backgroundColor: '#fff', height: '1px', border: 'none' }} />
+            <h2 className="text-white">Mevcut Ürünler</h2>
+            <ProductTable />
+        </div>
+    );
 };
 
 export default AdminPage;

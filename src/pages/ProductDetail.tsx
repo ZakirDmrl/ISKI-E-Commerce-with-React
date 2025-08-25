@@ -22,7 +22,6 @@ const ProductDetail = () => {
             setLoading(true);
             setError(null);
             
-            // productId'yi number'a dönüştür
             const idAsNumber = Number(productId);
             if (isNaN(idAsNumber)) {
                 setError('Geçersiz ürün kimliği.');
@@ -34,7 +33,7 @@ const ProductDetail = () => {
                 const { data, error: supabaseError } = await supabase
                     .from('products')
                     .select('*')
-                    .eq('id', idAsNumber) // Number'a dönüştürülmüş id'yi kullan
+                    .eq('id', idAsNumber)
                     .single();
 
                 if (supabaseError) {
@@ -61,7 +60,6 @@ const ProductDetail = () => {
     const handleAddToCart = () => {
         if (!isAuthenticated || !user) {
             dispatch(setNotification({ message: 'Sepete ürün eklemek için giriş yapmalısınız.', type: 'error' }));
-			
             return;
         }
 
@@ -77,41 +75,48 @@ const ProductDetail = () => {
         }
     };
 
-    if (loading) return <div style={{ textAlign: 'center', marginTop: '50px' }}>Ürün detayları yükleniyor...</div>;
-    if (error) return <div style={{ textAlign: 'center', marginTop: '50px' }}>Hata: {error}</div>;
-    if (!product) return <div style={{ textAlign: 'center', marginTop: '50px' }}>Ürün bulunamadı.</div>;
+    if (loading) return <div className="text-center mt-5">Ürün detayları yükleniyor...</div>;
+    if (error) return <div className="text-center mt-5 text-danger">Hata: {error}</div>;
+    if (!product) return <div className="text-center mt-5 text-warning">Ürün bulunamadı.</div>;
 
     return (
-        <div style={{ maxWidth: '800px', margin: 'auto', padding: '20px', border: '1px solid #ddd', borderRadius: '8px', boxShadow: '0 4px 8px rgba(0,0,0,0.1)' }}>
-            <div style={{ display: 'flex', gap: '40px', alignItems: 'flex-start' }}>
-                <img 
-                    src={product.image} 
-                    alt={product.title} 
-                    style={{ 
-                        width: '300px', 
-                        height: '300px', 
-                        objectFit: 'contain', 
-                        borderRadius: '8px'
-                    }} 
-                />
-                <div style={{ flex: 1 }}>
-                    <h1 style={{ fontSize: '2.5rem', marginBottom: '10px' }}>{product.title}</h1>
-                    <p style={{ color: '#555', fontSize: '1.2rem', marginBottom: '15px' }}>{product.description}</p>
-                    <p style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#007bff', marginBottom: '20px' }}>Fiyat: {product.price} TL</p>
-                    <button 
-                        onClick={handleAddToCart}
-                        style={{
-                            padding: '12px 24px',
-                            fontSize: '1rem',
-                            cursor: 'pointer',
-                            backgroundColor: '#28a745',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '5px'
-                        }}
-                    >
-                        Sepete Ekle
-                    </button>
+        <div className="container py-5">
+            <div className="card product-detail-card bg-dark text-white p-4">
+                <div className="row g-4">
+                    <div className="col-md-5 d-flex align-items-center justify-content-center">
+                        <img 
+                            src={product.image} 
+                            alt={product.title} 
+                            className="img-fluid rounded" 
+                            style={{ maxHeight: '400px', objectFit: 'contain' }}
+                        />
+                    </div>
+                    <div className="col-md-7 d-flex flex-column justify-content-between">
+                        <div>
+                            <span className="badge bg-secondary mb-2">{product.category}</span>
+                            <h1 className="display-5 fw-bold text-white">{product.title}</h1>
+                            
+                            <hr className="text-white-50" />
+                            
+                            <p className="lead text-white-50">{product.description}</p>
+                            
+                            <div className="my-3">
+                                <span className="text-warning fs-4 me-2">
+                                    {/* Basit bir yıldız gösterimi */}
+                                    {Array(Math.round(product.rating)).fill('⭐').join('')}
+                                </span>
+                                <span className="text-white-50">({product.rating_count} oy)</span>
+                            </div>
+                            
+                            <h2 className="text-success display-6 fw-bold my-4">{product.price.toFixed(2)} TL</h2>
+                        </div>
+                        
+                        <div>
+                            <button onClick={handleAddToCart} className="btn btn-lg btn-success w-100">
+                                <i className="bi bi-cart-plus me-2"></i> Sepete Ekle
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
