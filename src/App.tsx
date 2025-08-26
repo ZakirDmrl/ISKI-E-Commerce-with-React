@@ -15,7 +15,7 @@ import AdminPage from './pages/AdminPage'; // AdminPage bileşenini import et
 import { clearNotification } from './store/notificationSlice';
 import type { RootState } from './store/store';
 
-// import { migrateProducts } from './utils/migrateData';
+// import { migrateProducts } from './utils/migrateData';	
 
 /*
 App Bileşeni: Uygulamanın ana bileşenidir.

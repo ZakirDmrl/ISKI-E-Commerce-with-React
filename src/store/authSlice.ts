@@ -26,7 +26,7 @@ const initialState: AuthState = {
 // Asenkron Thunk ile giriş yapma işlemi
 export const signIn = createAsyncThunk(
 	'auth/signIn',
-	async ({ email, password }: any, { rejectWithValue }) => {
+	async ({ email, password }: Record<string, string>, { rejectWithValue }) => {
 		const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 		if (error) {
 			return rejectWithValue(error.message);
@@ -40,7 +40,7 @@ export const signIn = createAsyncThunk(
 // Asenkron Thunk ile kayıt olma işlemi
 export const signUp = createAsyncThunk(
 	'auth/signUp',
-	async ({ email, password }: any, { rejectWithValue }) => {
+	async ({ email, password }: Record<string, string>, { rejectWithValue }) => {
 		const { data, error } = await supabase.auth.signUp({ email, password });
 		if (error) {
 			return rejectWithValue(error.message);

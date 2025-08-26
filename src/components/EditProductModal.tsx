@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { useDispatch } from 'react-redux';
 import { setNotification } from '../store/notificationSlice';
+import type { AppDispatch } from '../store/store';
 
 interface Product {
     id: number;
@@ -22,7 +23,9 @@ interface EditProductModalProps {
 }
 
 const EditProductModal: React.FC<EditProductModalProps> = ({ product, onClose, onProductUpdated }) => {
-    const dispatch = useDispatch();
+	// useDispatch: Store'da bir değişikliği tetiklemek (action göndermek) için kullanılır.
+    const dispatch = useDispatch<AppDispatch>();
+	// Bir bileşenin içindeki veriyi (durumu) yönetmek için kullanılır. useState, bir bileşenin kendi içinde değişebilen verilere sahip olmasını sağlar
     const [title, setTitle] = useState(product.title);
     const [description, setDescription] = useState(product.description);
     const [price, setPrice] = useState(String(product.price));
@@ -33,6 +36,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ product, onClose, o
     const [loading, setLoading] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
+		// Form gönderme işlemini engellemek için kullanılır.
         e.preventDefault();
         setLoading(true);
 

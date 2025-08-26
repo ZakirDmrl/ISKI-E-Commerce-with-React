@@ -10,7 +10,8 @@ interface ProductCardProps {
 
 const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
     const handleAddToCartClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-        e.preventDefault();
+		// Eğer kullanıcı butona tıkladığında sayfayı yenilemesini engellemek için
+	    e.preventDefault();
         e.stopPropagation();
         onAddToCart(product);
     };
