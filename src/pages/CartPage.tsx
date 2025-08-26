@@ -59,6 +59,16 @@ const CartPage = () => {
             });
     };
 
+    // Ödeme butonunu eklemek için hesaplamalar
+    const subtotal = cartItems.reduce((total, item) => total + item.price * item.quantity, 0);
+    const tax = subtotal * 0.18; // %18 KDV
+    const shipping = 20; // Sabit kargo ücreti
+    const total = subtotal + tax + shipping;
+
+    const handleCheckout = () => {
+        navigate('/checkout');
+    };
+
     if (status === 'loading') {
         return <p style={{ textAlign: 'center', marginTop: '50px' }}>Sepetiniz yükleniyor...</p>;
     }
@@ -70,38 +80,82 @@ const CartPage = () => {
     return (
         <div style={{ padding: '20px' }}>
             <h1 style={{ textAlign: 'center', marginBottom: '20px' }}>Sepetim</h1>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
-                {cartItems.map((item) => (
-                    <div key={item.id} style={{ 
-                        border: '1px solid #ccc',
-                        padding: '15px',
-                        borderRadius: '5px',
-                        textAlign: 'center',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between',
-                        height: '450px', // Sabit sepet kartı yüksekliği
-                        boxSizing: 'border-box'
-                    }}>
-                        <img 
-                            src={item.image} 
-                            alt={item.title} 
-                            style={{ 
-                                width: '100%', 
-                                height: '200px', 
-                                objectFit: 'contain', 
-                                marginBottom: '10px' 
-                            }} 
-                        />
-                        <h3 style={{ height: '40px', overflow: 'hidden' }}>{item.title}</h3>
-                        <p>Fiyat: <strong>{item.price} TL</strong></p>
-                        <p>Adet: {item.quantity}</p>
-                        <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginTop: 'auto' }}>
-                            <button onClick={() => handleDecrement(item.id)} style={{ padding: '8px 12px', cursor: 'pointer', height: '40px' }}>-</button>
-                            <button onClick={() => handleRemove(item.id)} style={{ padding: '8px 12px', cursor: 'pointer', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', height: '40px' }}>Tamamen Kaldır</button>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '20px', alignItems: 'flex-start' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
+                    {cartItems.map((item) => (
+                        <div key={item.id} style={{ 
+                            border: '1px solid #ccc',
+                            padding: '15px',
+                            borderRadius: '5px',
+                            textAlign: 'center',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'space-between',
+                            height: '450px',
+                            boxSizing: 'border-box'
+                        }}>
+                            <img 
+                                src={item.image} 
+                                alt={item.title} 
+                                style={{ 
+                                    width: '100%', 
+                                    height: '200px', 
+                                    objectFit: 'contain', 
+                                    marginBottom: '10px' 
+                                }} 
+                            />
+                            <h3 style={{ height: '40px', overflow: 'hidden' }}>{item.title}</h3>
+                            <p>Fiyat: <strong>{item.price} TL</strong></p>
+                            <p>Adet: {item.quantity}</p>
+                            <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginTop: 'auto' }}>
+                                <button onClick={() => handleDecrement(item.id)} style={{ padding: '8px 12px', cursor: 'pointer', height: '40px' }}>-</button>
+                                <button onClick={() => handleRemove(item.id)} style={{ padding: '8px 12px', cursor: 'pointer', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', height: '40px' }}>Tamamen Kaldır</button>
+                            </div>
                         </div>
+                    ))}
+                </div>
+                {/* Bu kısım sepete eklenmesi gereken yeni bölüm */}
+                <div style={{
+                    border: '1px solid #ccc',
+                    padding: '20px',
+                    borderRadius: '5px',
+                    backgroundColor: '#333',
+                    color: '#fff',
+                }}>
+                    <h2 style={{ marginBottom: '15px' }}>Sipariş Özeti</h2>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                        <span>Ara Toplam:</span>
+                        <span>{subtotal.toFixed(2)} TL</span>
                     </div>
-                ))}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                        <span>KDV (%18):</span>
+                        <span>{tax.toFixed(2)} TL</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
+                        <span>Kargo:</span>
+                        <span>{shipping.toFixed(2)} TL</span>
+                    </div>
+                    <hr style={{ borderColor: '#666' }} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.2rem', fontWeight: 'bold' }}>
+                        <span>Toplam:</span>
+                        <span>{total.toFixed(2)} TL</span>
+                    </div>
+                    <button
+                        onClick={handleCheckout}
+                        style={{
+                            width: '100%',
+                            padding: '10px',
+                            marginTop: '20px',
+                            backgroundColor: '#198754',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '5px',
+                            cursor: 'pointer',
+                        }}
+                    >
+                        Ödemeye Geç
+                    </button>
+                </div>
             </div>
         </div>
     );

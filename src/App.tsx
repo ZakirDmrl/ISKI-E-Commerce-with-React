@@ -14,6 +14,7 @@ import PrivateRoute from './components/PrivateRoute';
 import AdminPage from './pages/AdminPage'; // AdminPage bileşenini import et
 import { clearNotification } from './store/notificationSlice';
 import type { RootState } from './store/store';
+import CheckoutPage from './pages/CheckoutPage';
 
 // import { migrateProducts } from './utils/migrateData';	
 
@@ -28,23 +29,23 @@ App Bileşeni: Uygulamanın ana bileşenidir.
 <Route>: Belirli bir URL yoluna (path) karşılık gelen bileşeni (element) eşleştirir.
 */
 const App: React.FC = () => {
-    const dispatch = useDispatch();
-    const notification = useSelector((state: RootState) => state.notification);
-    useEffect(() => {
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            let user: AppUser | null = null;
-            if (session?.user) {
-                const isAdmin = session.user.app_metadata.is_admin === true;
-				
+	const dispatch = useDispatch();
+	const notification = useSelector((state: RootState) => state.notification);
+	useEffect(() => {
+		const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+			let user: AppUser | null = null;
+			if (session?.user) {
+				const isAdmin = session.user.app_metadata.is_admin === true;
+
 				console.log('isAdmin:', isAdmin);
 				console.log('session.user:', session.user);
-                // Tip atamasını burada yapıyoruz
-                user = { ...session.user, isAdmin } as AppUser; 
-            }
-            dispatch(setUser(user));
-        });
-        return () => subscription.unsubscribe();
-    }, [dispatch]);
+				// Tip atamasını burada yapıyoruz
+				user = { ...session.user, isAdmin } as AppUser;
+			}
+			dispatch(setUser(user));
+		});
+		return () => subscription.unsubscribe();
+	}, [dispatch]);
 
 
 	useEffect(() => {
@@ -70,10 +71,12 @@ const App: React.FC = () => {
 							<Route path="/" element={<HomePage />} />
 							<Route path="/cart" element={<CartPage />} />
 							<Route path="/product/:productId" element={<ProductDetail />} />
+							<Route path="/checkout" element={<CheckoutPage />} /> {/* Yeni eklenen satır */}
+
 						</Route>
-						 <Route element={<PrivateRoute isAdminRoute={true} />}>
-                            <Route path="/admin" element={<AdminPage />} />
-                        </Route>
+						<Route element={<PrivateRoute isAdminRoute={true} />}>
+							<Route path="/admin" element={<AdminPage />} />
+						</Route>
 					</Routes>
 				</div>
 			</div>
