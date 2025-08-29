@@ -13,7 +13,7 @@ const HomePage: React.FC = () => {
     const { products, status, error, currentPage, totalPages, searchTerm, selectedCategory, categories } = useSelector((state: RootState) => state.products);
     const { user, isAuthenticated } = useSelector((state: RootState) => state.auth);
 
-    const productsPerPage = 5;
+    const productsPerPage = 8; // Daha fazla ürün gösterelim
 
     useEffect(() => {
         dispatch(fetchTotalProductsCount({ searchTerm: searchTerm, category: selectedCategory }));
@@ -57,65 +57,310 @@ const HomePage: React.FC = () => {
     };
 
     if (status === 'loading' && products.length === 0) {
-        return <p style={{ textAlign: 'center', marginTop: '50px' }}>Ürünler yükleniyor...</p>;
+        return (
+            <div style={{ 
+                display: 'flex', 
+                justifyContent: 'center', 
+                alignItems: 'center', 
+                minHeight: '60vh',
+                fontSize: '1.2rem',
+                color: '#fff'
+            }}>
+                <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '20px'
+                }}>
+                    <div className="loading-spinner" style={{
+                        width: '50px',
+                        height: '50px',
+                        border: '4px solid #333',
+                        borderTop: '4px solid #007bff',
+                        borderRadius: '50%',
+                        animation: 'spin 1s linear infinite'
+                    }}></div>
+                    Ürünler yükleniyor...
+                </div>
+            </div>
+        );
     }
 
     if (status === 'failed') {
-        return <p style={{ textAlign: 'center', marginTop: '50px' }}>Ürünler yüklenirken bir hata oluştu: {error}</p>;
+        return (
+            <div style={{ 
+                display: 'flex', 
+                justifyContent: 'center', 
+                alignItems: 'center', 
+                minHeight: '60vh',
+                flexDirection: 'column',
+                gap: '20px',
+                color: '#ff6b6b',
+                textAlign: 'center'
+            }}>
+                <div style={{ fontSize: '3rem' }}>⚠️</div>
+                <div style={{ fontSize: '1.2rem' }}>
+                    Ürünler yüklenirken bir hata oluştu
+                </div>
+                <div style={{ fontSize: '0.9rem', color: '#ccc' }}>
+                    {error}
+                </div>
+            </div>
+        );
     }
 
     return (
-        <div style={{ padding: '20px' }}>
-            <div style={{ marginBottom: '20px', display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
-                <input
-                    type="text"
-                    placeholder="Ürün Ara..."
-                    value={searchTerm}
-                    onChange={handleSearchChange}
-                    style={{ padding: '10px', minWidth: '200px', flexGrow: 1, borderRadius: '4px', border: '1px solid #ccc' }}
-                />
-                <select
-                    value={selectedCategory || ''}
-                    onChange={handleCategoryChange}
-                    style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }}
-                >
-                    <option value="">Tüm Kategoriler</option>
-                    {categories.map((category) => (
-                        <option key={category} value={category}>{category}</option>
-                    ))}
-                </select>
+        <div style={{ 
+            padding: '0',
+            maxWidth: '1400px',
+            margin: '0 auto'
+        }}>
+            {/* Hero Section */}
+            <div style={{
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                padding: '60px 40px',
+                borderRadius: '20px',
+                margin: '20px',
+                marginBottom: '40px',
+                textAlign: 'center',
+                boxShadow: '0 20px 40px rgba(0,0,0,0.3)'
+            }}>
+                <h1 style={{
+                    fontSize: '3rem',
+                    fontWeight: '700',
+                    margin: '0 0 20px 0',
+                    background: 'linear-gradient(45deg, #fff, #e0e0e0)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text'
+                }}>
+                    İSKİ E-Commerce
+                </h1>
+                <p style={{
+                    fontSize: '1.3rem',
+                    opacity: 0.9,
+                    margin: 0,
+                    color: '#fff'
+                }}>
+                    En kaliteli ürünleri keşfedin ve güvenli alışveriş yapın
+                </p>
+            </div>
+
+            {/* Filters Section */}
+            <div style={{ 
+                background: 'rgba(255,255,255,0.05)',
+                backdropFilter: 'blur(10px)',
+                borderRadius: '16px',
+                padding: '30px',
+                margin: '20px',
+                marginBottom: '40px',
+                border: '1px solid rgba(255,255,255,0.1)'
+            }}>
+                <div style={{ 
+                    display: 'flex', 
+                    gap: '20px', 
+                    alignItems: 'center', 
+                    flexWrap: 'wrap',
+                    justifyContent: 'space-between'
+                }}>
+                    <div style={{ flex: '1', minWidth: '300px' }}>
+                        <input
+                            type="text"
+                            placeholder="🔍 Ürün ara..."
+                            value={searchTerm}
+                            onChange={handleSearchChange}
+                            style={{ 
+                                width: '100%',
+                                padding: '15px 20px',
+                                fontSize: '1rem',
+                                borderRadius: '12px',
+                                border: '2px solid rgba(255,255,255,0.1)',
+                                backgroundColor: 'rgba(255,255,255,0.1)',
+                                color: '#fff',
+                                outline: 'none',
+                                transition: 'all 0.3s ease',
+                                backdropFilter: 'blur(10px)'
+                            }}
+                            onFocus={(e) => {
+                                e.target.style.borderColor = '#007bff';
+                                e.target.style.boxShadow = '0 0 20px rgba(0,123,255,0.3)';
+                            }}
+                            onBlur={(e) => {
+                                e.target.style.borderColor = 'rgba(255,255,255,0.1)';
+                                e.target.style.boxShadow = 'none';
+                            }}
+                        />
+                    </div>
+                    <div>
+                        <select
+                            value={selectedCategory || ''}
+                            onChange={handleCategoryChange}
+                            style={{ 
+                                padding: '15px 20px',
+                                fontSize: '1rem',
+                                borderRadius: '12px',
+                                border: '2px solid rgba(255,255,255,0.1)',
+                                backgroundColor: 'rgba(255,255,255,0.1)',
+                                color: '#fff',
+                                outline: 'none',
+                                cursor: 'pointer',
+                                minWidth: '200px',
+                                backdropFilter: 'blur(10px)'
+                            }}
+                        >
+                            <option value="" style={{ backgroundColor: '#333', color: '#fff' }}>
+                                📂 Tüm Kategoriler
+                            </option>
+                            {categories.map((category) => (
+                                <option key={category} value={category} style={{ backgroundColor: '#333', color: '#fff' }}>
+                                    {category}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
             </div>
             
-            {/* gridTemplateColumns: '1fr' olarak değiştirildi */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '20px' }}>
+            {/* Products Grid */}
+            <div style={{ 
+                padding: '0 20px',
+                marginBottom: '40px'
+            }}>
                 {products.length > 0 ? (
-                    products.map((product) => (
-                        <ProductCard key={product.id} product={product} onAddToCart={handleAddToCart} />
-                    ))
+                    <div style={{ 
+                        display: 'grid', 
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
+                        gap: '30px'
+                    }}>
+                        {products.map((product) => (
+                            <ProductCard key={product.id} product={product} onAddToCart={handleAddToCart} />
+                        ))}
+                    </div>
                 ) : (
-                    <p style={{ gridColumn: '1 / -1', textAlign: 'center' }}>Aradığınız kriterlere uygun ürün bulunamadı.</p>
+                    <div style={{ 
+                        textAlign: 'center',
+                        padding: '60px 20px',
+                        background: 'rgba(255,255,255,0.05)',
+                        borderRadius: '16px',
+                        border: '2px dashed rgba(255,255,255,0.2)'
+                    }}>
+                        <div style={{ fontSize: '4rem', marginBottom: '20px' }}>🔍</div>
+                        <h3 style={{ fontSize: '1.5rem', marginBottom: '10px', color: '#fff' }}>
+                            Ürün Bulunamadı
+                        </h3>
+                        <p style={{ color: '#ccc', fontSize: '1.1rem' }}>
+                            Aradığınız kriterlere uygun ürün bulunmamaktadır.
+                        </p>
+                    </div>
                 )}
             </div>
             
-            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '20px', gap: '10px', flexWrap: 'wrap' }}>
-                {[...Array(totalPages)].map((_, index) => (
-                    <button
-                        key={index + 1}
-                        onClick={() => handlePageChange(index + 1)}
-                        disabled={currentPage === index + 1}
-                        style={{
-                            padding: '10px 15px',
-                            cursor: 'pointer',
-                            backgroundColor: currentPage === index + 1 ? '#007bff' : '#f0f0f0',
-                            color: currentPage === index + 1 ? 'white' : 'black',
-                            border: '1px solid #ccc',
-                            borderRadius: '4px'
-                        }}
-                    >
-                        {index + 1}
-                    </button>
-                ))}
-            </div>
+            {/* Pagination */}
+            {totalPages > 1 && (
+                <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'center', 
+                    alignItems: 'center',
+                    margin: '40px 20px',
+                    gap: '10px', 
+                    flexWrap: 'wrap'
+                }}>
+                    {currentPage > 1 && (
+                        <button
+                            onClick={() => handlePageChange(currentPage - 1)}
+                            style={{
+                                padding: '12px 20px',
+                                backgroundColor: 'rgba(255,255,255,0.1)',
+                                color: '#fff',
+                                border: '2px solid rgba(255,255,255,0.2)',
+                                borderRadius: '12px',
+                                cursor: 'pointer',
+                                fontSize: '1rem',
+                                transition: 'all 0.3s ease',
+                                backdropFilter: 'blur(10px)'
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)';
+                                e.currentTarget.style.transform = 'translateY(-2px)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)';
+                                e.currentTarget.style.transform = 'translateY(0)';
+                            }}
+                        >
+                            ← Önceki
+                        </button>
+                    )}
+                    
+                    {[...Array(totalPages)].map((_, index) => {
+                        const pageNum = index + 1;
+                        const isActive = currentPage === pageNum;
+                        
+                        return (
+                            <button
+                                key={pageNum}
+                                onClick={() => handlePageChange(pageNum)}
+                                disabled={isActive}
+                                style={{
+                                    padding: '12px 18px',
+                                    cursor: isActive ? 'default' : 'pointer',
+                                    backgroundColor: isActive ? '#007bff' : 'rgba(255,255,255,0.1)',
+                                    color: '#fff',
+                                    border: `2px solid ${isActive ? '#007bff' : 'rgba(255,255,255,0.2)'}`,
+                                    borderRadius: '12px',
+                                    fontSize: '1rem',
+                                    fontWeight: isActive ? 'bold' : 'normal',
+                                    transition: 'all 0.3s ease',
+                                    backdropFilter: 'blur(10px)',
+                                    boxShadow: isActive ? '0 0 20px rgba(0,123,255,0.4)' : 'none',
+                                    minWidth: '50px'
+                                }}
+                                onMouseEnter={(e) => {
+                                    if (!isActive) {
+                                        e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)';
+                                        e.currentTarget.style.transform = 'translateY(-2px)';
+                                    }
+                                }}
+                                onMouseLeave={(e) => {
+                                    if (!isActive) {
+                                        e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)';
+                                        e.currentTarget.style.transform = 'translateY(0)';
+                                    }
+                                }}
+                            >
+                                {pageNum}
+                            </button>
+                        );
+                    })}
+                    
+                    {currentPage < totalPages && (
+                        <button
+                            onClick={() => handlePageChange(currentPage + 1)}
+                            style={{
+                                padding: '12px 20px',
+                                backgroundColor: 'rgba(255,255,255,0.1)',
+                                color: '#fff',
+                                border: '2px solid rgba(255,255,255,0.2)',
+                                borderRadius: '12px',
+                                cursor: 'pointer',
+                                fontSize: '1rem',
+                                transition: 'all 0.3s ease',
+                                backdropFilter: 'blur(10px)'
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)';
+                                e.currentTarget.style.transform = 'translateY(-2px)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)';
+                                e.currentTarget.style.transform = 'translateY(0)';
+                            }}
+                        >
+                            Sonraki →
+                        </button>
+                    )}
+                </div>
+            )}
         </div>
     );
 };

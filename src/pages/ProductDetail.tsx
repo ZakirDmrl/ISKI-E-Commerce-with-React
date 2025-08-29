@@ -7,6 +7,7 @@ import type { Product } from '../types';
 import type { RootState, AppDispatch } from '../store/store';
 import { addOrUpdateCartItem } from '../store/cartSlice';
 import { setNotification } from '../store/notificationSlice';
+import Comments from '../components/Comments';
 
 const ProductDetail = () => {
     const { productId } = useParams<{ productId: string }>();
@@ -45,7 +46,7 @@ const ProductDetail = () => {
                 }
                 
                 setProduct(data as Product);
-            } catch (err) {
+            } catch (err: any) {
                 setError(err.message);
             } finally {
                 setLoading(false);
@@ -75,50 +76,205 @@ const ProductDetail = () => {
         }
     };
 
-    if (loading) return <div className="text-center mt-5">Ürün detayları yükleniyor...</div>;
-    if (error) return <div className="text-center mt-5 text-danger">Hata: {error}</div>;
-    if (!product) return <div className="text-center mt-5 text-warning">Ürün bulunamadı.</div>;
+    if (loading) {
+        return (
+            <div style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                minHeight: '60vh',
+                flexDirection: 'column',
+                gap: '20px'
+            }}>
+                <div style={{
+                    width: '50px',
+                    height: '50px',
+                    border: '4px solid #333',
+                    borderTop: '4px solid #007bff',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite'
+                }}></div>
+                <p style={{ color: '#fff', fontSize: '1.2rem' }}>Ürün detayları yükleniyor...</p>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div style={{
+                textAlign: 'center',
+                padding: '50px 20px',
+                background: 'rgba(255,255,255,0.05)',
+                borderRadius: '16px',
+                border: '2px dashed rgba(255,255,255,0.2)'
+            }}>
+                <div style={{ fontSize: '3rem', marginBottom: '15px' }}>⚠️</div>
+                <h3 style={{ fontSize: '1.5rem', marginBottom: '10px', color: '#ff6b6b' }}>
+                    Hata
+                </h3>
+                <p style={{ color: '#ccc', fontSize: '1rem' }}>
+                    {error}
+                </p>
+            </div>
+        );
+    }
+
+    if (!product) {
+        return (
+            <div style={{
+                textAlign: 'center',
+                padding: '50px 20px',
+                background: 'rgba(255,255,255,0.05)',
+                borderRadius: '16px',
+                border: '2px dashed rgba(255,255,255,0.2)'
+            }}>
+                <div style={{ fontSize: '3rem', marginBottom: '15px' }}>🔍</div>
+                <h3 style={{ fontSize: '1.5rem', marginBottom: '10px', color: '#fff' }}>
+                    Ürün Bulunamadı
+                </h3>
+            </div>
+        );
+    }
 
     return (
-        <div className="container py-5">
-            <div className="card product-detail-card bg-dark text-white p-4">
-                <div className="row g-4">
-                    <div className="col-md-5 d-flex align-items-center justify-content-center">
+        <div style={{ width: '100%', padding: '0' }}>
+            {/* Product Detail Card */}
+            <div style={{
+                background: 'rgba(255,255,255,0.05)',
+                backdropFilter: 'blur(10px)',
+                borderRadius: '16px',
+                padding: '30px',
+                marginBottom: '30px',
+                border: '1px solid rgba(255,255,255,0.1)',
+                boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
+            }}>
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '30px',
+                    alignItems: 'start'
+                }}>
+                    {/* Product Image */}
+                    <div style={{
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        background: 'rgba(255,255,255,0.05)',
+                        borderRadius: '12px',
+                        padding: '20px'
+                    }}>
                         <img 
                             src={product.image} 
                             alt={product.title} 
-                            className="img-fluid rounded" 
-                            style={{ maxHeight: '400px', objectFit: 'contain' }}
+                            style={{ 
+                                maxWidth: '100%',
+                                maxHeight: '400px', 
+                                objectFit: 'contain',
+                                borderRadius: '8px'
+                            }}
                         />
                     </div>
-                    <div className="col-md-7 d-flex flex-column justify-content-between">
+                    
+                    {/* Product Info */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                         <div>
-                            <span className="badge bg-secondary mb-2">{product.category}</span>
-                            <h1 className="display-5 fw-bold text-white">{product.title}</h1>
-                            
-                            <hr className="text-white-50" />
-                            
-                            <p className="lead text-white-50">{product.description}</p>
-                            
-                            <div className="my-3">
-                                <span className="text-warning fs-4 me-2">
-                                    {/* Basit bir yıldız gösterimi */}
-                                    {Array(Math.round(product.rating)).fill('⭐').join('')}
-                                </span>
-                                <span className="text-white-50">({product.rating_count} oy)</span>
-                            </div>
-                            
-                            <h2 className="text-success display-6 fw-bold my-4">{product.price.toFixed(2)} TL</h2>
+                            <span style={{
+                                background: 'linear-gradient(45deg, #667eea, #764ba2)',
+                                color: 'white',
+                                padding: '6px 12px',
+                                borderRadius: '20px',
+                                fontSize: '0.85rem',
+                                fontWeight: '500'
+                            }}>
+                                {product.category}
+                            </span>
                         </div>
                         
-                        <div>
-                            <button onClick={handleAddToCart} className="btn btn-lg btn-success w-100">
-                                <i className="bi bi-cart-plus me-2"></i> Sepete Ekle
-                            </button>
+                        <h1 style={{
+                            fontSize: '2rem',
+                            fontWeight: '700',
+                            color: '#fff',
+                            margin: '0',
+                            lineHeight: '1.2'
+                        }}>
+                            {product.title}
+                        </h1>
+                        
+                        <div style={{
+                            padding: '20px',
+                            background: 'rgba(255,255,255,0.05)',
+                            borderRadius: '12px',
+                            border: '1px solid rgba(255,255,255,0.1)'
+                        }}>
+                            <p style={{
+                                color: '#e0e0e0',
+                                fontSize: '1rem',
+                                lineHeight: '1.6',
+                                margin: '0'
+                            }}>
+                                {product.description}
+                            </p>
                         </div>
+                        
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '15px',
+                            padding: '15px',
+                            background: 'rgba(255,255,255,0.05)',
+                            borderRadius: '12px'
+                        }}>
+                            <div style={{ fontSize: '1.5rem' }}>
+                                {Array(Math.round(product.rating)).fill('⭐').join('')}
+                            </div>
+                            <span style={{ color: '#ccc', fontSize: '0.9rem' }}>
+                                ({product.rating_count} değerlendirme)
+                            </span>
+                        </div>
+                        
+                        <div style={{
+                            fontSize: '2.5rem',
+                            fontWeight: '700',
+                            background: 'linear-gradient(45deg, #4CAF50, #45a049)',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent',
+                            backgroundClip: 'text'
+                        }}>
+                            {product.price.toFixed(2)} TL
+                        </div>
+                        
+                        <button 
+                            onClick={handleAddToCart} 
+                            style={{
+                                width: '100%',
+                                padding: '15px 20px',
+                                background: 'linear-gradient(45deg, #4CAF50, #45a049)',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '12px',
+                                fontSize: '1.1rem',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                transition: 'all 0.3s ease',
+                                boxShadow: '0 4px 15px rgba(76, 175, 80, 0.4)'
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.transform = 'translateY(-2px)';
+                                e.currentTarget.style.boxShadow = '0 8px 25px rgba(76, 175, 80, 0.6)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.transform = 'translateY(0)';
+                                e.currentTarget.style.boxShadow = '0 4px 15px rgba(76, 175, 80, 0.4)';
+                            }}
+                        >
+                            🛒 Sepete Ekle
+                        </button>
                     </div>
                 </div>
             </div>
+            
+            {/* Comments Section */}
+            {product && <Comments productId={product.id} />}
         </div>
     );
 };

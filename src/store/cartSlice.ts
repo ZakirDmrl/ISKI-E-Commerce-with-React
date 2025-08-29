@@ -50,59 +50,7 @@ export const fetchCartItems = createAsyncThunk<CartItem[], string>(
                 ...item.products,
                 id: item.products.id,
                 quantity: item.quantity,
-            }));
-            return formattedItems;
-        } catch (error) {
-            return rejectWithValue(error.message);
-        }
-    }
-);
-
-// Sepetteki ürün miktarını azaltma veya ürünü tamamen kaldırma
-export const decrementCartItemQuantity = createAsyncThunk(
-    'cart/decrementCartItemQuantity',
-    async ({ productId, userId }: { productId: number, userId: string }, { getState, rejectWithValue }) => {
-        try {
-            const state = getState() as RootState;
-            const existingItem = state.cart.items.find(item => item.id === productId);
-
-            if (!existingItem) {
-                throw new Error('Ürün sepette bulunamadı.');
-            }
-
-            const { data: cartData, error: cartError } = await supabase
-                .from('carts')
-                .select('id')
-                .eq('user_id', userId)
-                .single();
-            if (cartError) throw new Error(cartError.message);
-
-            if (existingItem.quantity > 1) {
-                const newQuantity = existingItem.quantity - 1;
-                await supabase
-                    .from('cart_items')
-                    .update({ quantity: newQuantity })
-                    .eq('cart_id', cartData.id)
-                    .eq('product_id', productId);
-            } else {
-                await supabase
-                    .from('cart_items')
-                    .delete()
-                    .eq('cart_id', cartData.id)
-                    .eq('product_id', productId);
-            }
-
-            const { data: updatedCartItemsData, error: updatedCartError } = await supabase
-                .from('cart_items')
-                .select('*, products(id, title, price, description, category, image, rating)')
-                .eq('cart_id', cartData.id);
-
-            if (updatedCartError) throw new Error(updatedCartError.message);
-
-            const formattedItems = updatedCartItemsData.map((item) => ({
-                ...item.products,
-                id: item.products.id,
-                quantity: item.quantity
+                cart_id: item.cart_id // cart_id'yi ekledik
             }));
             return formattedItems;
         } catch (error) {
@@ -170,7 +118,62 @@ export const addOrUpdateCartItem = createAsyncThunk<CartItem[], { product: Produ
             const formattedItems: CartItem[] = updatedCartItemsData.map((item) => ({
                 ...item.products,
                 id: item.products.id,
-                quantity: item.quantity
+                quantity: item.quantity,
+                cart_id: item.cart_id // cart_id'yi ekledik
+            }));
+            return formattedItems;
+        } catch (error) {
+            return rejectWithValue(error.message);
+        }
+    }
+);
+
+// Sepetteki ürün miktarını azaltma veya ürünü tamamen kaldırma
+export const decrementCartItemQuantity = createAsyncThunk(
+    'cart/decrementCartItemQuantity',
+    async ({ productId, userId }: { productId: number, userId: string }, { getState, rejectWithValue }) => {
+        try {
+            const state = getState() as RootState;
+            const existingItem = state.cart.items.find(item => item.id === productId);
+
+            if (!existingItem) {
+                throw new Error('Ürün sepette bulunamadı.');
+            }
+
+            const { data: cartData, error: cartError } = await supabase
+                .from('carts')
+                .select('id')
+                .eq('user_id', userId)
+                .single();
+            if (cartError) throw new Error(cartError.message);
+
+            if (existingItem.quantity > 1) {
+                const newQuantity = existingItem.quantity - 1;
+                await supabase
+                    .from('cart_items')
+                    .update({ quantity: newQuantity })
+                    .eq('cart_id', cartData.id)
+                    .eq('product_id', productId);
+            } else {
+                await supabase
+                    .from('cart_items')
+                    .delete()
+                    .eq('cart_id', cartData.id)
+                    .eq('product_id', productId);
+            }
+
+            const { data: updatedCartItemsData, error: updatedCartError } = await supabase
+                .from('cart_items')
+                .select('*, products(id, title, price, description, category, image, rating)')
+                .eq('cart_id', cartData.id);
+
+            if (updatedCartError) throw new Error(updatedCartError.message);
+
+            const formattedItems = updatedCartItemsData.map((item) => ({
+                ...item.products,
+                id: item.products.id,
+                quantity: item.quantity,
+                cart_id: item.cart_id
             }));
             return formattedItems;
         } catch (error) {
@@ -207,7 +210,8 @@ export const removeCartItem = createAsyncThunk(
             const formattedItems = updatedCartItemsData.map((item) => ({
                 ...item.products,
                 id: item.products.id,
-                quantity: item.quantity
+                quantity: item.quantity,
+                cart_id: item.cart_id
             }));
             return formattedItems;
         } catch (error) {
@@ -216,13 +220,47 @@ export const removeCartItem = createAsyncThunk(
     }
 );
 
-// Redux Slice
+// Sipariş oluşturma ve sepeti temizleme
+export const createOrder = createAsyncThunk<void, { userId: string, cartItems: CartItem[], totalAmount: number }>(
+    'cart/createOrder',
+    async ({ userId, cartItems, totalAmount }, { rejectWithValue, dispatch }) => {
+        try {
+            // 1. orders tablosuna yeni bir sipariş kaydı ekle
+            const { error: orderError } = await supabase
+                .from('orders')
+                .insert([{ user_id: userId, total_amount: totalAmount, status: 'completed' }])
+                .select()
+                .single();
+            
+            if (orderError) throw new Error(orderError.message);
+
+            // 2. Tüm sepet öğelerini sil
+            if (cartItems.length > 0) {
+                const cartIdToDelete = cartItems[0].cart_id;
+                const { error: deleteError } = await supabase
+                    .from('cart_items')
+                    .delete()
+                    .eq('cart_id', cartIdToDelete);
+
+                if (deleteError) throw new Error(deleteError.message);
+            }
+            
+            // Redux store'daki sepeti temizle
+            dispatch(clearCart());
+            
+        } catch (error) {
+            return rejectWithValue(error.message);
+        }
+    }
+);
+
 const cartSlice = createSlice({
     name: 'cart',
     initialState,
     reducers: {
         clearCart: (state) => {
             state.items = [];
+            state.status = 'succeeded';
         }
     },
     extraReducers: (builder) => {
@@ -268,6 +306,17 @@ const cartSlice = createSlice({
                 state.items = action.payload;
             })
             .addCase(removeCartItem.rejected, (state, action) => {
+                state.status = 'failed';
+                state.error = action.payload as string;
+            })
+            .addCase(createOrder.pending, (state) => {
+                state.status = 'loading';
+            })
+            .addCase(createOrder.fulfilled, (state) => {
+                state.status = 'succeeded';
+                state.items = [];
+            })
+            .addCase(createOrder.rejected, (state, action) => {
                 state.status = 'failed';
                 state.error = action.payload as string;
             });
