@@ -1,8 +1,7 @@
-// src/store/cartSlice.ts
+// src/store/cartSlice.ts - Tamamen düzeltilmiş versiyon
 import { createAsyncThunk, createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import type { Product, CartItem } from '../types';
 import { supabase } from '../supabaseClient';
-import type { RootState } from './store';
+import type { CartItem, Product, ProductWithStock } from '../types';
 
 interface CartState {
     items: CartItem[];
@@ -16,312 +15,474 @@ const initialState: CartState = {
     error: null,
 };
 
-// Supabase'den kullanıcının sepetini çekme
+// Sepet öğelerini çek (düzeltilmiş)
 export const fetchCartItems = createAsyncThunk<CartItem[], string>(
     'cart/fetchCartItems',
-    async (userId, { rejectWithValue }) => {
+    async (userId: string, { rejectWithValue }) => {
         try {
+            // Önce kullanıcının cart'ını bul veya oluştur
             let { data: cartData, error: cartError } = await supabase
                 .from('carts')
                 .select('id')
                 .eq('user_id', userId)
                 .single();
 
-            if (cartError && cartError.code === 'PGRST116') {
-                const { data: newCartData, error: newCartError } = await supabase
-                    .from('carts')
-                    .insert({ user_id: userId })
-                    .select('id')
-                    .single();
-                if (newCartError) throw new Error(newCartError.message);
-                cartData = newCartData;
-            } else if (cartError) {
-                throw new Error(cartError.message);
-            }
-
-            const { data, error } = await supabase
-                .from('cart_items')
-                .select('*, products(id, title, price, description, category, image, rating)')
-                .eq('cart_id', cartData!.id);
-
-            if (error) throw new Error(error.message);
-
-            const formattedItems: CartItem[] = data.map((item) => ({
-                ...item.products,
-                id: item.products.id,
-                quantity: item.quantity,
-                cart_id: item.cart_id // cart_id'yi ekledik
-            }));
-            return formattedItems;
-        } catch (error) {
-            return rejectWithValue(error.message);
-        }
-    }
-);
-
-// Sepete ürün ekleme veya güncelleme
-export const addOrUpdateCartItem = createAsyncThunk<CartItem[], { product: Product, userId: string }>(
-    'cart/addOrUpdateCartItem',
-    async ({ product, userId }, { rejectWithValue }) => {
-        try {
-            let { data: cartData, error: cartError } = await supabase
-                .from('carts')
-                .select('id')
-                .eq('user_id', userId)
-                .single();
-
-            if (cartError && cartError.code === 'PGRST116') {
-                const { data: newCartData, error: newCartError } = await supabase
+            if (cartError) {
+                // Cart yoksa oluştur
+                const { data: newCart, error: createError } = await supabase
                     .from('carts')
                     .insert([{ user_id: userId }])
                     .select('id')
                     .single();
-                if (newCartError) throw new Error(newCartError.message);
-                cartData = newCartData;
-            } else if (cartError) {
-                throw new Error(cartError.message);
+
+                if (createError) {
+                    throw new Error(`Cart oluşturulamadı: ${createError.message}`);
+                }
+                cartData = newCart;
             }
 
-            const { data: existingCartItem, error: existingItemError } = await supabase
+            if (!cartData) {
+                return [];
+            }
+
+            // Cart items'ları çek - JOIN kullan
+            const { data, error } = await supabase
                 .from('cart_items')
-                .select('*')
-                .eq('cart_id', cartData!.id)
+                .select(`
+                    id,
+                    cart_id,
+                    product_id,
+                    quantity,
+                    created_at,
+                    products!cart_items_product_id_fkey (
+                        id,
+                        title,
+                        description,
+                        price,
+                        image,
+                        category,
+                        sku,
+                        rating,
+                        rating_count,
+                        is_active
+                    )
+                `)
+                .eq('cart_id', cartData.id);
+
+            if (error) {
+                console.error('Sepet öğeleri çekilemedi:', error);
+                throw new Error(error.message);
+            }
+
+            // Veriyi uygun formata çevir
+            const formattedItems: CartItem[] = (data || [])
+                .filter(item => item.products && item.products.is_active !== false)
+                .map(item => ({
+                    id: item.id,
+                    cart_id: item.cart_id,
+                    product_id: item.product_id,
+                    quantity: item.quantity,
+                    created_at: item.created_at,
+                    product: Array.isArray(item.products) ? item.products[0] : item.products
+                }));
+
+            return formattedItems;
+        } catch (error) {
+            console.error('fetchCartItems hata:', error);
+            return rejectWithValue(error.message);
+        }
+    }
+);
+
+// Sepete ürün ekle veya güncelle (düzeltilmiş)
+export const addOrUpdateCartItem = createAsyncThunk<
+    CartItem,
+    { product: Product | ProductWithStock; userId: string; quantity?: number }
+>(
+    'cart/addOrUpdateCartItem',
+    async ({ product, userId, quantity = 1 }, { rejectWithValue }) => {
+        try {
+            // Önce stok kontrolü yap (ürün stok bilgisi varsa)
+            if ('available_stock' in product && product.available_stock !== undefined) {
+                if (product.available_stock < quantity) {
+                    throw new Error(`Yetersiz stok. Mevcut: ${product.available_stock}, İstenen: ${quantity}`);
+                }
+            }
+
+            // Kullanıcının cart'ını bul veya oluştur
+            let { data: cartData, error: cartError } = await supabase
+                .from('carts')
+                .select('id')
+                .eq('user_id', userId)
+                .single();
+
+            if (cartError) {
+                const { data: newCart, error: createError } = await supabase
+                    .from('carts')
+                    .insert([{ user_id: userId }])
+                    .select('id')
+                    .single();
+
+                if (createError) {
+                    throw new Error(`Cart oluşturulamadı: ${createError.message}`);
+                }
+                cartData = newCart;
+            }
+
+            if (!cartData) {
+                throw new Error('Cart verisi alınamadı');
+            }
+
+            // Mevcut cart item'ı kontrol et
+            const { data: existingItem } = await supabase
+                .from('cart_items')
+                .select('id, quantity')
+                .eq('cart_id', cartData.id)
                 .eq('product_id', product.id)
                 .single();
 
-            if (existingItemError && existingItemError.code !== 'PGRST116') {
-                throw new Error(existingItemError.message);
-            }
-
-            if (existingCartItem) {
-                const newQuantity = existingCartItem.quantity + 1;
-                await supabase
+            let cartItemData;
+            if (existingItem) {
+                // Mevcut item'ı güncelle
+                const { data, error } = await supabase
                     .from('cart_items')
-                    .update({ quantity: newQuantity })
-                    .eq('cart_id', cartData!.id)
-                    .eq('product_id', product.id);
+                    .update({ quantity: existingItem.quantity + quantity })
+                    .eq('id', existingItem.id)
+                    .select(`
+                        id,
+                        cart_id,
+                        product_id,
+                        quantity,
+                        created_at
+                    `)
+                    .single();
+
+                if (error) {
+                    throw new Error(`Sepet güncellenemedi: ${error.message}`);
+                }
+                cartItemData = data;
             } else {
-                await supabase
+                // Yeni item ekle
+                const { data, error } = await supabase
                     .from('cart_items')
-                    .insert([
-                        { cart_id: cartData!.id, product_id: product.id, quantity: 1 }
-                    ]);
+                    .insert([{
+                        cart_id: cartData.id,
+                        product_id: product.id,
+                        quantity: quantity
+                    }])
+                    .select(`
+                        id,
+                        cart_id,
+                        product_id,
+                        quantity,
+                        created_at
+                    `)
+                    .single();
+
+                if (error) {
+                    throw new Error(`Sepete eklenemedi: ${error.message}`);
+                }
+                cartItemData = data;
             }
 
-            const { data: updatedCartItemsData, error: updatedCartError } = await supabase
-                .from('cart_items')
-                .select('*, products(id, title, price, description, category, image, rating)')
-                .eq('cart_id', cartData!.id);
+            // Product bilgisini manuel ekle (JOIN sorunları için)
+            const result: CartItem = {
+                ...cartItemData,
+                product: {
+                    id: product.id,
+                    title: product.title,
+                    description: product.description,
+                    price: product.price,
+                    image: product.image,
+                    category: product.category,
+                    sku: product.sku,
+                    rating: product.rating,
+                    rating_count: product.rating_count,
+                    is_active: product.is_active,
+                    created_at: product.created_at,
+                    updated_at: product.updated_at
+                }
+            };
 
-            if (updatedCartError) throw new Error(updatedCartError.message);
-
-            const formattedItems: CartItem[] = updatedCartItemsData.map((item) => ({
-                ...item.products,
-                id: item.products.id,
-                quantity: item.quantity,
-                cart_id: item.cart_id // cart_id'yi ekledik
-            }));
-            return formattedItems;
+            return result;
         } catch (error) {
+            console.error('addOrUpdateCartItem hata:', error);
             return rejectWithValue(error.message);
         }
     }
 );
 
-// Sepetteki ürün miktarını azaltma veya ürünü tamamen kaldırma
-export const decrementCartItemQuantity = createAsyncThunk(
+// Sepet öğesi miktarını azalt (düzeltilmiş)
+export const decrementCartItemQuantity = createAsyncThunk<
+    { productId: number; newQuantity: number },
+    { productId: number; userId: string }
+>(
     'cart/decrementCartItemQuantity',
-    async ({ productId, userId }: { productId: number, userId: string }, { getState, rejectWithValue }) => {
+    async ({ productId, userId }, { rejectWithValue }) => {
         try {
-            const state = getState() as RootState;
-            const existingItem = state.cart.items.find(item => item.id === productId);
-
-            if (!existingItem) {
-                throw new Error('Ürün sepette bulunamadı.');
-            }
-
+            // Kullanıcının cart'ını bul
             const { data: cartData, error: cartError } = await supabase
                 .from('carts')
                 .select('id')
                 .eq('user_id', userId)
                 .single();
-            if (cartError) throw new Error(cartError.message);
 
-            if (existingItem.quantity > 1) {
-                const newQuantity = existingItem.quantity - 1;
-                await supabase
-                    .from('cart_items')
-                    .update({ quantity: newQuantity })
-                    .eq('cart_id', cartData.id)
-                    .eq('product_id', productId);
-            } else {
-                await supabase
+            if (cartError || !cartData) {
+                throw new Error('Sepet bulunamadı');
+            }
+
+            // Mevcut cart item'ı bul
+            const { data: existingItem, error: findError } = await supabase
+                .from('cart_items')
+                .select('id, quantity')
+                .eq('cart_id', cartData.id)
+                .eq('product_id', productId)
+                .single();
+
+            if (findError || !existingItem) {
+                throw new Error('Sepet öğesi bulunamadı');
+            }
+
+            if (existingItem.quantity <= 1) {
+                // Miktar 1 ise tamamen kaldır
+                const { error } = await supabase
                     .from('cart_items')
                     .delete()
-                    .eq('cart_id', cartData.id)
-                    .eq('product_id', productId);
+                    .eq('id', existingItem.id);
+
+                if (error) {
+                    throw new Error(`Ürün kaldırılamadı: ${error.message}`);
+                }
+
+                return { productId, newQuantity: 0 };
+            } else {
+                // Miktarı azalt
+                const { error } = await supabase
+                    .from('cart_items')
+                    .update({ quantity: existingItem.quantity - 1 })
+                    .eq('id', existingItem.id);
+
+                if (error) {
+                    throw new Error(`Miktar azaltılamadı: ${error.message}`);
+                }
+
+                return { productId, newQuantity: existingItem.quantity - 1 };
             }
-
-            const { data: updatedCartItemsData, error: updatedCartError } = await supabase
-                .from('cart_items')
-                .select('*, products(id, title, price, description, category, image, rating)')
-                .eq('cart_id', cartData.id);
-
-            if (updatedCartError) throw new Error(updatedCartError.message);
-
-            const formattedItems = updatedCartItemsData.map((item) => ({
-                ...item.products,
-                id: item.products.id,
-                quantity: item.quantity,
-                cart_id: item.cart_id
-            }));
-            return formattedItems;
         } catch (error) {
+            console.error('decrementCartItemQuantity hata:', error);
             return rejectWithValue(error.message);
         }
     }
 );
 
-// Sepetten bir ürünü tamamen kaldırma
-export const removeCartItem = createAsyncThunk(
+// Sepetten ürün kaldır (düzeltilmiş)
+export const removeCartItem = createAsyncThunk<
+    number,
+    { productId: number; userId: string }
+>(
     'cart/removeCartItem',
-    async ({ productId, userId }: { productId: number, userId: string }, { rejectWithValue }) => {
+    async ({ productId, userId }, { rejectWithValue }) => {
         try {
+            console.log('removeCartItem çağrıldı:', { productId, userId });
+
+            if (!productId || productId === undefined) {
+                throw new Error('Geçersiz product ID');
+            }
+
+            // Kullanıcının cart'ını bul
             const { data: cartData, error: cartError } = await supabase
                 .from('carts')
                 .select('id')
                 .eq('user_id', userId)
                 .single();
-            if (cartError) throw new Error(cartError.message);
 
-            await supabase
+            if (cartError || !cartData) {
+                throw new Error('Sepet bulunamadı');
+            }
+
+            console.log('Cart bulundu:', cartData.id);
+
+            // Cart item'ı sil
+            const { error } = await supabase
                 .from('cart_items')
                 .delete()
                 .eq('cart_id', cartData.id)
                 .eq('product_id', productId);
 
-            const { data: updatedCartItemsData, error: updatedCartError } = await supabase
-                .from('cart_items')
-                .select('*, products(id, title, price, description, category, image, rating)')
-                .eq('cart_id', cartData.id);
+            if (error) {
+                throw new Error(`Ürün sepetten kaldırılamadı: ${error.message}`);
+            }
 
-            if (updatedCartError) throw new Error(updatedCartError.message);
-
-            const formattedItems = updatedCartItemsData.map((item) => ({
-                ...item.products,
-                id: item.products.id,
-                quantity: item.quantity,
-                cart_id: item.cart_id
-            }));
-            return formattedItems;
+            console.log('Ürün başarıyla kaldırıldı:', productId);
+            return productId;
         } catch (error) {
+            console.error('removeCartItem hata:', error);
             return rejectWithValue(error.message);
         }
     }
 );
 
-// Sipariş oluşturma ve sepeti temizleme
-export const createOrder = createAsyncThunk<void, { userId: string, cartItems: CartItem[], totalAmount: number }>(
+// createOrder fonksiyonu (bonus - sipariş oluşturma için)
+export const createOrder = createAsyncThunk<
+    void,
+    { userId: string; cartItems: CartItem[]; totalAmount: number }
+>(
     'cart/createOrder',
-    async ({ userId, cartItems, totalAmount }, { rejectWithValue, dispatch }) => {
+    async ({ userId, cartItems, totalAmount }, { rejectWithValue }) => {
         try {
-            // 1. orders tablosuna yeni bir sipariş kaydı ekle
-            const { error: orderError } = await supabase
+            // Sipariş oluştur
+            const { data: orderData, error: orderError } = await supabase
                 .from('orders')
-                .insert([{ user_id: userId, total_amount: totalAmount, status: 'completed' }])
-                .select()
+                .insert([{
+                    user_id: userId,
+                    total_amount: totalAmount,
+                    status: 'pending'
+                }])
+                .select('id')
                 .single();
-            
-            if (orderError) throw new Error(orderError.message);
 
-            // 2. Tüm sepet öğelerini sil
-            if (cartItems.length > 0) {
-                const cartIdToDelete = cartItems[0].cart_id;
-                const { error: deleteError } = await supabase
+            if (orderError || !orderData) {
+                throw new Error(`Sipariş oluşturulamadı: ${orderError?.message}`);
+            }
+
+            // Sipariş öğelerini ekle
+            const orderItems = cartItems.map(item => ({
+                order_id: orderData.id,
+                product_id: item.product_id,
+                quantity: item.quantity,
+                unit_price: item.product?.price || 0,
+                total_price: (item.product?.price || 0) * item.quantity
+            }));
+
+            const { error: itemsError } = await supabase
+                .from('order_items')
+                .insert(orderItems);
+
+            if (itemsError) {
+                throw new Error(`Sipariş öğeleri eklenemedi: ${itemsError.message}`);
+            }
+
+            // Sepeti temizle
+            const { data: cartData } = await supabase
+                .from('carts')
+                .select('id')
+                .eq('user_id', userId)
+                .single();
+
+            if (cartData) {
+                await supabase
                     .from('cart_items')
                     .delete()
-                    .eq('cart_id', cartIdToDelete);
-
-                if (deleteError) throw new Error(deleteError.message);
+                    .eq('cart_id', cartData.id);
             }
-            
-            // Redux store'daki sepeti temizle
-            dispatch(clearCart());
-            
+
+            // Sipariş durumunu 'completed' olarak güncelle (stok düşürme trigger'ı için)
+            await supabase
+                .from('orders')
+                .update({ status: 'completed' })
+                .eq('id', orderData.id);
+
         } catch (error) {
+            console.error('createOrder hata:', error);
             return rejectWithValue(error.message);
         }
     }
 );
 
+// Redux slice
 const cartSlice = createSlice({
     name: 'cart',
     initialState,
     reducers: {
         clearCart: (state) => {
             state.items = [];
-            state.status = 'succeeded';
+        },
+        setCartError: (state, action: PayloadAction<string>) => {
+            state.error = action.payload;
+        },
+        clearError: (state) => {
+            state.error = null;
         }
     },
     extraReducers: (builder) => {
         builder
+            // fetchCartItems
             .addCase(fetchCartItems.pending, (state) => {
                 state.status = 'loading';
+                state.error = null;
             })
-            .addCase(fetchCartItems.fulfilled, (state, action: PayloadAction<CartItem[]>) => {
+            .addCase(fetchCartItems.fulfilled, (state, action) => {
                 state.status = 'succeeded';
                 state.items = action.payload;
+                state.error = null;
             })
             .addCase(fetchCartItems.rejected, (state, action) => {
                 state.status = 'failed';
                 state.error = action.payload as string;
             })
+            
+            // addOrUpdateCartItem
             .addCase(addOrUpdateCartItem.pending, (state) => {
-                state.status = 'loading';
+                state.error = null;
             })
-            .addCase(addOrUpdateCartItem.fulfilled, (state, action: PayloadAction<CartItem[]>) => {
-                state.status = 'succeeded';
-                state.items = action.payload;
+            .addCase(addOrUpdateCartItem.fulfilled, (state, action) => {
+                const newItem = action.payload;
+                const existingItemIndex = state.items.findIndex(
+                    item => item.product_id === newItem.product_id
+                );
+
+                if (existingItemIndex !== -1) {
+                    // Mevcut öğeyi güncelle
+                    state.items[existingItemIndex] = newItem;
+                } else {
+                    // Yeni öğe ekle
+                    state.items.push(newItem);
+                }
+                state.error = null;
             })
             .addCase(addOrUpdateCartItem.rejected, (state, action) => {
-                state.status = 'failed';
                 state.error = action.payload as string;
             })
-            .addCase(decrementCartItemQuantity.pending, (state) => {
-                state.status = 'loading';
-            })
-            .addCase(decrementCartItemQuantity.fulfilled, (state, action: PayloadAction<CartItem[]>) => {
-                state.status = 'succeeded';
-                state.items = action.payload;
+            
+            // decrementCartItemQuantity
+            .addCase(decrementCartItemQuantity.fulfilled, (state, action) => {
+                const { productId, newQuantity } = action.payload;
+                if (newQuantity === 0) {
+                    // Ürünü sepetten kaldır
+                    state.items = state.items.filter(item => item.product_id !== productId);
+                } else {
+                    // Miktarı güncelle
+                    const item = state.items.find(item => item.product_id === productId);
+                    if (item) {
+                        item.quantity = newQuantity;
+                    }
+                }
+                state.error = null;
             })
             .addCase(decrementCartItemQuantity.rejected, (state, action) => {
-                state.status = 'failed';
                 state.error = action.payload as string;
             })
-            .addCase(removeCartItem.pending, (state) => {
-                state.status = 'loading';
-            })
-            .addCase(removeCartItem.fulfilled, (state, action: PayloadAction<CartItem[]>) => {
-                state.status = 'succeeded';
-                state.items = action.payload;
+            
+            // removeCartItem
+            .addCase(removeCartItem.fulfilled, (state, action) => {
+                const productId = action.payload;
+                state.items = state.items.filter(item => item.product_id !== productId);
+                state.error = null;
             })
             .addCase(removeCartItem.rejected, (state, action) => {
-                state.status = 'failed';
                 state.error = action.payload as string;
             })
-            .addCase(createOrder.pending, (state) => {
-                state.status = 'loading';
-            })
+            
+            // createOrder
             .addCase(createOrder.fulfilled, (state) => {
-                state.status = 'succeeded';
-                state.items = [];
+                state.items = []; // Sipariş tamamlandığında sepeti temizle
+                state.error = null;
             })
             .addCase(createOrder.rejected, (state, action) => {
-                state.status = 'failed';
                 state.error = action.payload as string;
             });
     },
 });
 
-export const { clearCart } = cartSlice.actions;
+export const { clearCart, setCartError, clearError } = cartSlice.actions;
 export default cartSlice.reducer;

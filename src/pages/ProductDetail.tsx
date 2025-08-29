@@ -3,10 +3,11 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { supabase } from '../supabaseClient';
-import type { Product } from '../types';
+import type { ProductWithStock, StockStatus } from '../types';
 import type { RootState, AppDispatch } from '../store/store';
 import { addOrUpdateCartItem } from '../store/cartSlice';
 import { setNotification } from '../store/notificationSlice';
+import { checkProductStock } from '../store/productSlice';
 import Comments from '../components/Comments';
 
 const ProductDetail = () => {
@@ -14,9 +15,10 @@ const ProductDetail = () => {
     const dispatch = useDispatch<AppDispatch>();
     const { user, isAuthenticated } = useSelector((state: RootState) => state.auth);
     
-    const [product, setProduct] = useState<Product | null>(null);
+    const [product, setProduct] = useState<ProductWithStock | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [addingToCart, setAddingToCart] = useState(false);
 
     useEffect(() => {
         const fetchProduct = async () => {
@@ -33,7 +35,18 @@ const ProductDetail = () => {
             try {
                 const { data, error: supabaseError } = await supabase
                     .from('products')
-                    .select('*')
+                    .select(`
+                        *,
+                        inventory:inventory(
+                            id,
+                            quantity,
+                            reserved_quantity,
+                            min_stock_level,
+                            max_stock_level,
+                            cost_price,
+                            updated_at
+                        )
+                    `)
                     .eq('id', idAsNumber)
                     .single();
 
@@ -44,8 +57,26 @@ const ProductDetail = () => {
                 if (!data) {
                     throw new Error('Ürün bulunamadı.');
                 }
+
+                // Stok bilgilerini hesapla
+                const inventory = Array.isArray(data.inventory) ? data.inventory[0] : data.inventory;
+                const availableStock = inventory ? inventory.quantity - inventory.reserved_quantity : 0;
                 
-                setProduct(data as Product);
+                let stockStatus: StockStatus = 'IN_STOCK';
+                if (availableStock <= 0) {
+                    stockStatus = 'OUT_OF_STOCK';
+                } else if (inventory && availableStock <= inventory.min_stock_level) {
+                    stockStatus = 'LOW_STOCK';
+                }
+
+                const productWithStock: ProductWithStock = {
+                    ...data,
+                    inventory,
+                    available_stock: availableStock,
+                    stock_status: stockStatus
+                };
+                
+                setProduct(productWithStock);
             } catch (err: any) {
                 setError(err.message);
             } finally {
@@ -58,22 +89,122 @@ const ProductDetail = () => {
         }
     }, [productId]);
 
-    const handleAddToCart = () => {
+    const handleAddToCart = async () => {
         if (!isAuthenticated || !user) {
             dispatch(setNotification({ message: 'Sepete ürün eklemek için giriş yapmalısınız.', type: 'error' }));
             return;
         }
 
-        if (product) {
-            dispatch(addOrUpdateCartItem({ product, userId: user.id }))
-                .unwrap()
-                .then(() => {
-                    dispatch(setNotification({ message: `${product.title} sepete eklendi!`, type: 'success' }));
-                })
-                .catch((err) => {
-                    dispatch(setNotification({ message: `Sepete eklenirken hata oluştu: ${err.message}`, type: 'error' }));
-                });
+        if (!product) return;
+
+        // Stokta yoksa işlemi durdur
+        if (product.stock_status === 'OUT_OF_STOCK') {
+            dispatch(setNotification({ message: 'Bu ürün şu anda stokta bulunmuyor.', type: 'error' }));
+            return;
         }
+
+        setAddingToCart(true);
+        
+        try {
+            // Stok durumunu kontrol et
+            await dispatch(checkProductStock({ 
+                productId: product.id, 
+                quantity: 1 
+            })).unwrap();
+
+            // Stok kontrolü başarılıysa sepete ekle
+            await dispatch(addOrUpdateCartItem({ product, userId: user.id })).unwrap();
+            
+            dispatch(setNotification({ 
+                message: `${product.title} sepete eklendi!`, 
+                type: 'success' 
+            }));
+
+            // Stok bilgilerini yenile
+            const { data } = await supabase
+                .from('products')
+                .select('*, inventory:inventory(*)')
+                .eq('id', product.id)
+                .single();
+
+            if (data) {
+                const inventory = Array.isArray(data.inventory) ? data.inventory[0] : data.inventory;
+                const availableStock = inventory ? inventory.quantity - inventory.reserved_quantity : 0;
+                
+                setProduct(prev => prev ? {
+                    ...prev,
+                    inventory,
+                    available_stock: availableStock
+                } : null);
+            }
+
+        } catch (err: any) {
+            dispatch(setNotification({ 
+                message: `Sepete eklenirken hata oluştu: ${err.message}`, 
+                type: 'error' 
+            }));
+        } finally {
+            setAddingToCart(false);
+        }
+    };
+
+    const getStockStatusDisplay = () => {
+        if (!product || product.available_stock === undefined) return null;
+
+        const isOutOfStock = product.stock_status === 'OUT_OF_STOCK';
+        const isLowStock = product.stock_status === 'LOW_STOCK';
+
+        return (
+            <div style={{
+                padding: '15px',
+                background: isOutOfStock 
+                    ? 'rgba(220, 53, 69, 0.1)' 
+                    : isLowStock 
+                        ? 'rgba(255, 193, 7, 0.1)'
+                        : 'rgba(40, 167, 69, 0.1)',
+                borderRadius: '12px',
+                border: `1px solid ${isOutOfStock 
+                    ? 'rgba(220, 53, 69, 0.3)' 
+                    : isLowStock 
+                        ? 'rgba(255, 193, 7, 0.3)'
+                        : 'rgba(40, 167, 69, 0.3)'}`,
+                marginBottom: '20px'
+            }}>
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    marginBottom: '8px'
+                }}>
+                    <span style={{ fontSize: '1.2rem' }}>
+                        {isOutOfStock ? '❌' : isLowStock ? '⚠️' : '✅'}
+                    </span>
+                    <span style={{
+                        color: isOutOfStock ? '#dc3545' : isLowStock ? '#ffc107' : '#28a745',
+                        fontWeight: '600',
+                        fontSize: '1rem'
+                    }}>
+                        {isOutOfStock 
+                            ? 'Stokta Yok' 
+                            : isLowStock 
+                                ? `Az Stok Kaldı (${product.available_stock} adet)`
+                                : `Stokta Var (${product.available_stock} adet)`}
+                    </span>
+                </div>
+                
+                {product.inventory?.reserved_quantity > 0 && (
+                    <div style={{ fontSize: '0.9rem', color: '#ccc' }}>
+                        Rezerve edilmiş: {product.inventory.reserved_quantity} adet
+                    </div>
+                )}
+
+                {product.sku && (
+                    <div style={{ fontSize: '0.9rem', color: '#aaa', marginTop: '5px' }}>
+                        SKU: <code style={{ color: '#17a2b8' }}>{product.sku}</code>
+                    </div>
+                )}
+            </div>
+        );
     };
 
     if (loading) {
@@ -136,6 +267,8 @@ const ProductDetail = () => {
         );
     }
 
+    const isOutOfStock = product.stock_status === 'OUT_OF_STOCK';
+
     return (
         <div style={{ width: '100%', padding: '0' }}>
             {/* Product Detail Card */}
@@ -161,7 +294,8 @@ const ProductDetail = () => {
                         alignItems: 'center',
                         background: 'rgba(255,255,255,0.05)',
                         borderRadius: '12px',
-                        padding: '20px'
+                        padding: '20px',
+                        position: 'relative'
                     }}>
                         <img 
                             src={product.image} 
@@ -170,9 +304,25 @@ const ProductDetail = () => {
                                 maxWidth: '100%',
                                 maxHeight: '400px', 
                                 objectFit: 'contain',
-                                borderRadius: '8px'
+                                borderRadius: '8px',
+                                filter: isOutOfStock ? 'grayscale(30%)' : 'none'
                             }}
                         />
+                        {isOutOfStock && (
+                            <div style={{
+                                position: 'absolute',
+                                top: '20px',
+                                right: '20px',
+                                background: 'rgba(220, 53, 69, 0.9)',
+                                color: 'white',
+                                padding: '8px 12px',
+                                borderRadius: '8px',
+                                fontWeight: 'bold',
+                                fontSize: '0.9rem'
+                            }}>
+                                STOKTA YOK
+                            </div>
+                        )}
                     </div>
                     
                     {/* Product Info */}
@@ -216,21 +366,26 @@ const ProductDetail = () => {
                             </p>
                         </div>
                         
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '15px',
-                            padding: '15px',
-                            background: 'rgba(255,255,255,0.05)',
-                            borderRadius: '12px'
-                        }}>
-                            <div style={{ fontSize: '1.5rem' }}>
-                                {Array(Math.round(product.rating)).fill('⭐').join('')}
+                        {product.rating && product.rating > 0 && (
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '15px',
+                                padding: '15px',
+                                background: 'rgba(255,255,255,0.05)',
+                                borderRadius: '12px'
+                            }}>
+                                <div style={{ fontSize: '1.5rem' }}>
+                                    {Array(Math.round(product.rating)).fill('⭐').join('')}
+                                </div>
+                                <span style={{ color: '#ccc', fontSize: '0.9rem' }}>
+                                    {product.rating.toFixed(1)} ({product.rating_count || 0} değerlendirme)
+                                </span>
                             </div>
-                            <span style={{ color: '#ccc', fontSize: '0.9rem' }}>
-                                ({product.rating_count} değerlendirme)
-                            </span>
-                        </div>
+                        )}
+
+                        {/* Stok Durumu */}
+                        {getStockStatusDisplay()}
                         
                         <div style={{
                             fontSize: '2.5rem',
@@ -240,34 +395,48 @@ const ProductDetail = () => {
                             WebkitTextFillColor: 'transparent',
                             backgroundClip: 'text'
                         }}>
-                            {product.price.toFixed(2)} TL
+                            {typeof product.price === 'number' ? product.price.toFixed(2) : product.price} TL
                         </div>
                         
                         <button 
-                            onClick={handleAddToCart} 
+                            onClick={handleAddToCart}
+                            disabled={isOutOfStock || addingToCart}
                             style={{
                                 width: '100%',
                                 padding: '15px 20px',
-                                background: 'linear-gradient(45deg, #4CAF50, #45a049)',
+                                background: isOutOfStock 
+                                    ? 'linear-gradient(45deg, #6c757d, #5a6268)'
+                                    : 'linear-gradient(45deg, #4CAF50, #45a049)',
                                 color: 'white',
                                 border: 'none',
                                 borderRadius: '12px',
                                 fontSize: '1.1rem',
                                 fontWeight: '600',
-                                cursor: 'pointer',
+                                cursor: isOutOfStock || addingToCart ? 'not-allowed' : 'pointer',
                                 transition: 'all 0.3s ease',
-                                boxShadow: '0 4px 15px rgba(76, 175, 80, 0.4)'
+                                boxShadow: isOutOfStock 
+                                    ? 'none' 
+                                    : '0 4px 15px rgba(76, 175, 80, 0.4)',
+                                opacity: isOutOfStock ? 0.6 : 1
                             }}
                             onMouseEnter={(e) => {
-                                e.currentTarget.style.transform = 'translateY(-2px)';
-                                e.currentTarget.style.boxShadow = '0 8px 25px rgba(76, 175, 80, 0.6)';
+                                if (!isOutOfStock && !addingToCart) {
+                                    e.currentTarget.style.transform = 'translateY(-2px)';
+                                    e.currentTarget.style.boxShadow = '0 8px 25px rgba(76, 175, 80, 0.6)';
+                                }
                             }}
                             onMouseLeave={(e) => {
-                                e.currentTarget.style.transform = 'translateY(0)';
-                                e.currentTarget.style.boxShadow = '0 4px 15px rgba(76, 175, 80, 0.4)';
+                                if (!isOutOfStock && !addingToCart) {
+                                    e.currentTarget.style.transform = 'translateY(0)';
+                                    e.currentTarget.style.boxShadow = '0 4px 15px rgba(76, 175, 80, 0.4)';
+                                }
                             }}
                         >
-                            🛒 Sepete Ekle
+                            {addingToCart 
+                                ? '🔄 Ekleniyor...' 
+                                : isOutOfStock 
+                                    ? '❌ Stokta Yok' 
+                                    : '🛒 Sepete Ekle'}
                         </button>
                     </div>
                 </div>

@@ -25,16 +25,17 @@ const CartPage = () => {
     }, [isAuthenticated, user, status, dispatch]);
 
     const handleDecrement = (productId: number) => {
-        const item = cartItems.find(item => item.id === productId);
+        const item = cartItems.find(item => item.product_id === productId);
         if (!item || !user) return;
 
         dispatch(decrementCartItemQuantity({ productId, userId: user.id }))
             .unwrap()
             .then(() => {
+                const productTitle = item.product?.title || 'Ürün';
                 if (item.quantity > 1) {
-                    dispatch(setNotification({ message: `${item.title} sayısı azaltıldı.`, type: 'info' }));
+                    dispatch(setNotification({ message: `${productTitle} sayısı azaltıldı.`, type: 'info' }));
                 } else {
-                    dispatch(setNotification({ message: `${item.title} sepetten kaldırıldı.`, type: 'error' }));
+                    dispatch(setNotification({ message: `${productTitle} sepetten kaldırıldı.`, type: 'error' }));
                 }
                 setTimeout(() => dispatch(clearNotification()), 3000);
             })
@@ -59,9 +60,14 @@ const CartPage = () => {
             });
     };
 
-    const subtotal = cartItems.reduce((total, item) => total + item.price * item.quantity, 0);
+    // Sepet toplam hesaplama - product bilgisini kullan
+    const subtotal = cartItems.reduce((total, item) => {
+        const productPrice = item.product?.price || 0;
+        return total + productPrice * item.quantity;
+    }, 0);
+    
     const tax = subtotal * 0.18;
-    const shipping = 20;
+    const shipping = subtotal > 0 ? 20 : 0; // Sepet boşsa kargo ücreti yok
     const total = subtotal + tax + shipping;
 
     const handleCheckout = () => {
@@ -192,8 +198,8 @@ const CartPage = () => {
                                 overflow: 'hidden'
                             }}>
                                 <img 
-                                    src={item.image} 
-                                    alt={item.title} 
+                                    src={item.product?.image || '/placeholder.jpg'} 
+                                    alt={item.product?.title || 'Ürün'} 
                                     style={{ 
                                         width: '100%',
                                         height: '100%',
@@ -210,8 +216,10 @@ const CartPage = () => {
                                     margin: '0',
                                     lineHeight: '1.3'
                                 }}>
-                                    {item.title}
+                                    {item.product?.title || 'Ürün adı bulunamadı'}
                                 </h3>
+                                
+                                {/* Ürün detayları */}
                                 <div style={{
                                     display: 'flex',
                                     alignItems: 'center',
@@ -219,16 +227,37 @@ const CartPage = () => {
                                     color: '#ccc',
                                     fontSize: '0.9rem'
                                 }}>
-                                    <span>Birim Fiyat: {item.price} TL</span>
+                                    <span>Birim Fiyat: {item.product?.price || 0} TL</span>
                                     <span>•</span>
                                     <span>Adet: {item.quantity}</span>
+                                    {item.product?.sku && (
+                                        <>
+                                            <span>•</span>
+                                            <span>SKU: {item.product.sku}</span>
+                                        </>
+                                    )}
                                 </div>
+                                
+                                {/* Kategori */}
+                                {item.product?.category && (
+                                    <span style={{
+                                        background: 'rgba(255,255,255,0.1)',
+                                        color: '#ccc',
+                                        padding: '2px 8px',
+                                        borderRadius: '12px',
+                                        fontSize: '0.8rem',
+                                        width: 'fit-content'
+                                    }}>
+                                        {item.product.category}
+                                    </span>
+                                )}
+                                
                                 <div style={{
                                     fontSize: '1.2rem',
                                     fontWeight: '700',
                                     color: '#4CAF50'
                                 }}>
-                                    Toplam: {(item.price * item.quantity).toFixed(2)} TL
+                                    Toplam: {((item.product?.price || 0) * item.quantity).toFixed(2)} TL
                                 </div>
                             </div>
 
@@ -239,7 +268,7 @@ const CartPage = () => {
                                 alignItems: 'center'
                             }}>
                                 <button 
-                                    onClick={() => handleDecrement(item.id)} 
+                                    onClick={() => handleDecrement(item.product_id)} 
                                     style={{
                                         width: '40px',
                                         height: '40px',
@@ -265,7 +294,7 @@ const CartPage = () => {
                                 </button>
                                 
                                 <button 
-                                    onClick={() => handleRemove(item.id)} 
+                                    onClick={() => handleRemove(item.product_id)} 
                                     style={{
                                         padding: '8px 16px',
                                         background: 'linear-gradient(45deg, #ff6b6b, #ee5a24)',
@@ -310,6 +339,30 @@ const CartPage = () => {
                     }}>
                         Sipariş Özeti
                     </h2>
+                    
+                    {/* Sepet detayları */}
+                    <div style={{ marginBottom: '20px' }}>
+                        {cartItems.map((item) => (
+                            <div key={item.id} style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                padding: '8px 0',
+                                borderBottom: '1px solid rgba(255,255,255,0.1)',
+                                fontSize: '0.9rem'
+                            }}>
+                                <div style={{ color: '#ccc' }}>
+                                    <span>{item.product?.title || 'Ürün'}</span>
+                                    <span style={{ marginLeft: '5px', color: '#888' }}>
+                                        x{item.quantity}
+                                    </span>
+                                </div>
+                                <span style={{ color: '#fff', fontWeight: '600' }}>
+                                    {((item.product?.price || 0) * item.quantity).toFixed(2)} TL
+                                </span>
+                            </div>
+                        ))}
+                    </div>
                     
                     <div style={{
                         display: 'flex',
@@ -358,32 +411,56 @@ const CartPage = () => {
                             <span>{total.toFixed(2)} TL</span>
                         </div>
                     </div>
+
+                    {/* Stok uyarısı */}
+                    {cartItems.some(item => !item.product) && (
+                        <div style={{
+                            background: 'rgba(255, 193, 7, 0.1)',
+                            border: '1px solid rgba(255, 193, 7, 0.3)',
+                            borderRadius: '8px',
+                            padding: '10px',
+                            marginBottom: '15px',
+                            fontSize: '0.85rem',
+                            color: '#FFC107'
+                        }}>
+                            ⚠️ Bazı ürünlerin bilgileri eksik. Lütfen sepetinizi kontrol edin.
+                        </div>
+                    )}
                     
                     <button
                         onClick={handleCheckout}
+                        disabled={cartItems.length === 0}
                         style={{
                             width: '100%',
                             padding: '15px 20px',
-                            background: 'linear-gradient(45deg, #4CAF50, #45a049)',
+                            background: cartItems.length === 0 
+                                ? 'rgba(108, 117, 125, 0.5)'
+                                : 'linear-gradient(45deg, #4CAF50, #45a049)',
                             color: 'white',
                             border: 'none',
                             borderRadius: '12px',
                             fontSize: '1.1rem',
                             fontWeight: '600',
-                            cursor: 'pointer',
+                            cursor: cartItems.length === 0 ? 'not-allowed' : 'pointer',
                             transition: 'all 0.3s ease',
-                            boxShadow: '0 4px 15px rgba(76, 175, 80, 0.4)'
+                            boxShadow: cartItems.length === 0 
+                                ? 'none'
+                                : '0 4px 15px rgba(76, 175, 80, 0.4)'
                         }}
                         onMouseEnter={(e) => {
-                            e.currentTarget.style.transform = 'translateY(-2px)';
-                            e.currentTarget.style.boxShadow = '0 8px 25px rgba(76, 175, 80, 0.6)';
+                            if (cartItems.length > 0) {
+                                e.currentTarget.style.transform = 'translateY(-2px)';
+                                e.currentTarget.style.boxShadow = '0 8px 25px rgba(76, 175, 80, 0.6)';
+                            }
                         }}
                         onMouseLeave={(e) => {
-                            e.currentTarget.style.transform = 'translateY(0)';
-                            e.currentTarget.style.boxShadow = '0 4px 15px rgba(76, 175, 80, 0.4)';
+                            if (cartItems.length > 0) {
+                                e.currentTarget.style.transform = 'translateY(0)';
+                                e.currentTarget.style.boxShadow = '0 4px 15px rgba(76, 175, 80, 0.4)';
+                            }
                         }}
                     >
-                        Ödemeye Geç
+                        {cartItems.length === 0 ? 'Sepet Boş' : 'Ödemeye Geç'}
                     </button>
                 </div>
             </div>
