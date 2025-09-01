@@ -12,8 +12,8 @@ interface ProductState {
     searchTerm: string;
     selectedCategory: string | null;
     categories: string[];
-    stockFilter: StockStatus | null; // Yeni: stok durumu filtresi
-    lowStockCount: number; // Yeni: düşük stok sayısı
+    stockFilter: StockStatus | null;
+    lowStockCount: number;
 }
 
 const initialState: ProductState = {
@@ -30,6 +30,7 @@ const initialState: ProductState = {
 };
 
 // Stok bilgisi ile birlikte ürünleri çek
+// createAsyncThunk Redux’ta asenkron işlemleri (API çağrısı, veri çekme, kaydetme vb.) yönetmek için kullanılır.
 export const fetchProducts = createAsyncThunk<
     ProductWithStock[], 
     { page: number, limit: number, searchTerm: string, category: string | null, stockFilter: StockStatus | null }

@@ -9,17 +9,26 @@ import { fetchLowStockCount } from '../store/productSlice';
 import { setNotification } from '../store/notificationSlice';
 import AddProductForm from './AddProductForm';
 import ProductTable from '../components/ProductTable';
-import type { DashboardStats, LowStockProduct } from '../types';
+import type { DashboardStats, LowStockProduct, Product, ProductWithStock, StockStatus } from '../types';
+
+// Sayfalama için sabitler
+const ITEMS_PER_PAGE = 8;
 
 const AdminPage: React.FC = () => {
 	const navigate = useNavigate();
 	const dispatch = useDispatch<AppDispatch>();
 	const { user, isAuthenticated, status } = useSelector((state: RootState) => state.auth);
-	
+
 	const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
 	const [lowStockProducts, setLowStockProducts] = useState<LowStockProduct[]>([]);
 	const [loadingStats, setLoadingStats] = useState(true);
 	const [activeTab, setActiveTab] = useState<'overview' | 'add-product' | 'products'>('overview');
+
+	// Ürün listesi ve sayfalama için yeni state'ler
+	const [products, setProducts] = useState<Product[]>([]);
+	const [currentPage, setCurrentPage] = useState(1);
+	const [totalCount, setTotalCount] = useState(0);
+	const [loadingProducts, setLoadingProducts] = useState(false);
 
 	useEffect(() => {
 		if (status === 'succeeded' && (!isAuthenticated || !(user as AppUser)?.isAdmin)) {
@@ -29,15 +38,19 @@ const AdminPage: React.FC = () => {
 
 	useEffect(() => {
 		if (isAuthenticated && (user as AppUser)?.isAdmin) {
-			fetchDashboardData();
-			dispatch(fetchLowStockCount());
+			if (activeTab === 'overview') {
+				fetchDashboardData();
+				dispatch(fetchLowStockCount());
+			} else if (activeTab === 'products') {
+				fetchProducts();
+			}
 		}
-	}, [isAuthenticated, user, dispatch]);
+	}, [isAuthenticated, user, dispatch, activeTab, currentPage]);
 
 	const fetchDashboardData = async () => {
 		try {
 			setLoadingStats(true);
-			
+
 			// Paralel olarak verileri çek
 			const [
 				{ count: totalProducts },
@@ -56,7 +69,7 @@ const AdminPage: React.FC = () => {
 				.from('orders')
 				.select('total_amount')
 				.in('status', ['completed', 'paid']);
-			
+
 			const totalRevenue = orders?.reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
 
 			// Stok durumu sayıları
@@ -73,36 +86,113 @@ const AdminPage: React.FC = () => {
 			});
 
 			setLowStockProducts(lowStock || []);
-
 		} catch (error) {
-			dispatch(setNotification({ 
-				message: 'Dashboard verileri yüklenirken hata: ' + error.message, 
-				type: 'error' 
+			dispatch(setNotification({
+				message: 'Dashboard verileri yüklenirken hata: ' + error.message,
+				type: 'error'
 			}));
 		} finally {
 			setLoadingStats(false);
 		}
 	};
 
+	const fetchProducts = async () => {
+		setLoadingProducts(true);
+		const from = (currentPage - 1) * ITEMS_PER_PAGE;
+		const to = from + ITEMS_PER_PAGE - 1;
+
+		const { data, count, error } = await supabase
+			.from('products')
+			.select(`
+                *,
+                inventory:inventory(
+                    id,
+                    quantity,
+                    reserved_quantity,
+                    min_stock_level,
+                    max_stock_level,
+                    cost_price,
+                    updated_at
+                )
+            `, { count: 'exact' })
+			.order('id', { ascending: false })
+			.range(from, to);
+
+		if (error) {
+			console.error('Ürünler yüklenirken hata:', error);
+			dispatch(setNotification({
+				message: 'Ürünler yüklenirken hata oluştu: ' + error.message,
+				type: 'error',
+			}));
+			setLoadingProducts(false);
+			return;
+		}
+
+		const productsWithStock: ProductWithStock[] = (data || []).map(product => {
+			const inventory = Array.isArray(product.inventory) ? product.inventory[0] : product.inventory;
+			const availableStock = inventory ? inventory.quantity - inventory.reserved_quantity : 0;
+
+			let stockStatus: StockStatus = 'IN_STOCK';
+			if (availableStock <= 0) {
+				stockStatus = 'OUT_OF_STOCK';
+			} else if (inventory && availableStock <= inventory.min_stock_level) {
+				stockStatus = 'LOW_STOCK';
+			}
+
+			return {
+				...product,
+				inventory,
+				available_stock: availableStock,
+				stock_status: stockStatus
+			};
+		});
+
+		setProducts(productsWithStock);
+		setTotalCount(count || 0);
+		setLoadingProducts(false);
+	};
+
+	const handlePageChange = (page: number) => {
+		setCurrentPage(page);
+		window.scrollTo({ top: 0, behavior: 'smooth' });
+	};
+
 	if (status === 'loading' || !isAuthenticated) {
 		return (
-			<div style={{
-				display: 'flex',
-				justifyContent: 'center',
-				alignItems: 'center',
-				minHeight: '60vh',
-				flexDirection: 'column',
-				gap: '20px'
-			}}>
-				<div style={{
-					width: '50px',
-					height: '50px',
-					border: '4px solid #333',
-					borderTop: '4px solid #007bff',
-					borderRadius: '50%',
-					animation: 'spin 1s linear infinite'
-				}}></div>
-				<p style={{ color: '#fff', fontSize: '1.2rem' }}>Erişim kontrol ediliyor...</p>
+			<div className="loading-container">
+				<div className="loading-content">
+					<div className="loading-spinner"></div>
+					<p>Erişim kontrol ediliyor...</p>
+				</div>
+				<style>{`
+					.loading-container {
+						display: flex;
+						justify-content: center;
+						align-items: center;
+						min-height: 60vh;
+						flex-direction: column;
+						gap: 20px;
+					}
+					.loading-content {
+						display: flex;
+						flex-direction: column;
+						align-items: center;
+						gap: 20px;
+					}
+					.loading-spinner {
+						width: 50px;
+						height: 50px;
+						border: 4px solid #333;
+						border-top: 4px solid #007bff;
+						border-radius: 50%;
+						animation: spin 1s linear infinite;
+					}
+					.loading-content p {
+						color: #fff;
+						font-size: 1.2rem;
+						margin: 0;
+					}
+				`}</style>
 			</div>
 		);
 	}
@@ -111,76 +201,32 @@ const AdminPage: React.FC = () => {
 		return null;
 	}
 
-	const StatCard: React.FC<{ title: string; value: string | number; icon: string; color: string; subtitle?: string }> = 
+	const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
+
+	const StatCard: React.FC<{ title: string; value: string | number; icon: string; color: string; subtitle?: string }> =
 		({ title, value, icon, color, subtitle }) => (
-		<div style={{
-			background: 'rgba(255,255,255,0.05)',
-			backdropFilter: 'blur(10px)',
-			borderRadius: '12px',
-			padding: '20px',
-			border: '1px solid rgba(255,255,255,0.1)',
-			textAlign: 'center',
-			transition: 'transform 0.3s ease'
-		}}>
-			<div style={{ fontSize: '2rem', marginBottom: '10px' }}>{icon}</div>
-			<h3 style={{ 
-				color: color, 
-				fontSize: '2rem', 
-				fontWeight: '700', 
-				margin: '0 0 5px 0' 
-			}}>
-				{typeof value === 'number' && title.includes('TL') ? 
-					`${value.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL` : 
-					value.toLocaleString('tr-TR')}
-			</h3>
-			<p style={{ color: '#ccc', margin: '0', fontSize: '0.9rem' }}>{title}</p>
-			{subtitle && (
-				<p style={{ color: '#888', margin: '5px 0 0 0', fontSize: '0.8rem' }}>{subtitle}</p>
-			)}
-		</div>
-	);
+			<div className="stat-card">
+				<div className="stat-icon">{icon}</div>
+				<h3 className="stat-value" style={{ color }}>
+					{typeof value === 'number' && title.includes('TL') ?
+						`${value.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL` :
+						value.toLocaleString('tr-TR')}
+				</h3>
+				<p className="stat-title">{title}</p>
+				{subtitle && <p className="stat-subtitle">{subtitle}</p>}
+			</div>
+		);
 
 	return (
-		<div style={{ width: '100%', padding: '0 20px' }}>
+		<div className="admin-page">
 			{/* Header */}
-			<div style={{
-				background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-				borderRadius: '16px',
-				padding: '30px',
-				marginBottom: '30px',
-				textAlign: 'center',
-				boxShadow: '0 20px 40px rgba(0,0,0,0.3)'
-			}}>
-				<h1 style={{
-					fontSize: '2rem',
-					fontWeight: '700',
-					margin: '0',
-					background: 'linear-gradient(45deg, #fff, #e0e0e0)',
-					WebkitBackgroundClip: 'text',
-					WebkitTextFillColor: 'transparent',
-					backgroundClip: 'text'
-				}}>
-					Admin Dashboard
-				</h1>
-				<p style={{
-					fontSize: '1rem',
-					opacity: 0.9,
-					margin: '8px 0 0 0',
-					color: '#fff'
-				}}>
-					Mağaza yönetimi ve stok takibi
-				</p>
+			<div className="admin-header">
+				<h1 className="admin-title">Admin Dashboard</h1>
+				<p className="admin-subtitle">Mağaza yönetimi ve stok takibi</p>
 			</div>
 
 			{/* Navigation Tabs */}
-			<div style={{
-				display: 'flex',
-				gap: '10px',
-				marginBottom: '30px',
-				background: 'rgba(255,255,255,0.05)',
-				borderRadius: '12px',
-				padding: '5px'
-			}}>
+			<div className="admin-tabs">
 				{[
 					{ id: 'overview', label: 'Genel Bakış', icon: '📊' },
 					{ id: 'add-product', label: 'Ürün Ekle', icon: '➕' },
@@ -188,45 +234,28 @@ const AdminPage: React.FC = () => {
 				].map((tab) => (
 					<button
 						key={tab.id}
-						onClick={() => setActiveTab(tab.id as any)}
-						style={{
-							flex: 1,
-							padding: '12px 20px',
-							background: activeTab === tab.id ? 'rgba(255,255,255,0.2)' : 'transparent',
-							color: '#fff',
-							border: 'none',
-							borderRadius: '8px',
-							cursor: 'pointer',
-							fontSize: '1rem',
-							fontWeight: '600',
-							transition: 'all 0.3s ease',
-							display: 'flex',
-							alignItems: 'center',
-							justifyContent: 'center',
-							gap: '8px'
+						onClick={() => {
+							setActiveTab(tab.id as any);
+							if (tab.id === 'products') {
+								setCurrentPage(1);
+							}
 						}}
+						className={`tab-button ${activeTab === tab.id ? 'active' : ''}`}
 					>
-						<span>{tab.icon}</span>
-						{tab.label}
+						<span className="tab-icon">{tab.icon}</span>
+						<span className="tab-label">{tab.label}</span>
 					</button>
 				))}
 			</div>
 
 			{/* Content based on active tab */}
 			{activeTab === 'overview' && (
-				<>
+				<div className="overview-content">
 					{/* Dashboard Stats */}
 					{loadingStats ? (
-						<div style={{ textAlign: 'center', padding: '40px', color: '#fff' }}>
-							Dashboard yükleniyor...
-						</div>
+						<div className="stats-loading">Dashboard yükleniyor...</div>
 					) : dashboardStats && (
-						<div style={{
-							display: 'grid',
-							gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-							gap: '20px',
-							marginBottom: '30px'
-						}}>
+						<div className="stats-grid">
 							<StatCard
 								title="Toplam Ürün"
 								value={dashboardStats.total_products}
@@ -270,143 +299,478 @@ const AdminPage: React.FC = () => {
 
 					{/* Low Stock Alert */}
 					{lowStockProducts.length > 0 && (
-						<div style={{
-							background: 'rgba(255, 193, 7, 0.1)',
-							borderRadius: '16px',
-							padding: '25px',
-							marginBottom: '30px',
-							border: '1px solid rgba(255, 193, 7, 0.3)'
-						}}>
-							<h3 style={{
-								color: '#FFC107',
-								fontSize: '1.3rem',
-								fontWeight: '700',
-								margin: '0 0 15px 0',
-								display: 'flex',
-								alignItems: 'center',
-								gap: '8px'
-							}}>
+						<div className="low-stock-alert">
+							<h3 className="alert-title">
 								⚠️ Düşük Stok Uyarısı
 							</h3>
-							<div style={{
-								display: 'grid',
-								gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-								gap: '15px'
-							}}>
+							<div className="low-stock-grid">
 								{lowStockProducts.slice(0, 6).map((product) => (
-									<div
-										key={product.id}
-										style={{
-											background: 'rgba(255,255,255,0.05)',
-											borderRadius: '8px',
-											padding: '12px',
-											display: 'flex',
-											justifyContent: 'space-between',
-											alignItems: 'center'
-										}}
-									>
-										<div>
-											<p style={{ 
-												color: '#fff', 
-												margin: '0', 
-												fontWeight: '600',
-												fontSize: '0.9rem'
-											}}>
-												{product.name}
-											</p>
-											<p style={{ 
-												color: '#ccc', 
-												margin: '2px 0 0 0', 
-												fontSize: '0.8rem'
-											}}>
-												SKU: {product.sku || 'N/A'}
-											</p>
+									<div key={product.id} className="low-stock-item">
+										<div className="product-info">
+											<p className="product-name">{product.name}</p>
+											<p className="product-sku">SKU: {product.sku || 'N/A'}</p>
 										</div>
-										<div style={{ textAlign: 'right' }}>
-											<span style={{
-												background: '#FFC107',
-												color: '#000',
-												padding: '4px 8px',
-												borderRadius: '12px',
-												fontSize: '0.8rem',
-												fontWeight: '600'
-											}}>
-												{product.available_stock} / {product.min_stock_level}
-											</span>
+										<div className="stock-badge">
+											{product.available_stock} / {product.min_stock_level}
 										</div>
 									</div>
 								))}
 							</div>
 							{lowStockProducts.length > 6 && (
-								<p style={{ 
-									color: '#FFC107', 
-									textAlign: 'center', 
-									margin: '15px 0 0 0',
-									fontSize: '0.9rem'
-								}}>
+								<p className="remaining-count">
 									...ve {lowStockProducts.length - 6} ürün daha
 								</p>
 							)}
 						</div>
 					)}
-				</>
+				</div>
 			)}
 
 			{activeTab === 'add-product' && (
-				<div style={{
-					background: 'rgba(255,255,255,0.05)',
-					backdropFilter: 'blur(10px)',
-					borderRadius: '16px',
-					padding: '30px',
-					border: '1px solid rgba(255,255,255,0.1)',
-					boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
-				}}>
+				<div className="add-product-content">
 					<AddProductForm />
 				</div>
 			)}
 
 			{activeTab === 'products' && (
-				<div style={{
-					background: 'rgba(255,255,255,0.05)',
-					backdropFilter: 'blur(10px)',
-					borderRadius: '16px',
-					padding: '30px',
-					border: '1px solid rgba(255,255,255,0.1)',
-					boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
-				}}>
-					<div style={{
-						display: 'flex',
-						justifyContent: 'space-between',
-						alignItems: 'center',
-						marginBottom: '25px'
-					}}>
-						<h2 style={{
-							fontSize: '1.5rem',
-							fontWeight: '700',
-							color: '#fff',
-							margin: '0'
-						}}>
-							Ürün Yönetimi
-						</h2>
+				<div className="products-content">
+					<div className="products-header">
+						<h2 className="products-title">Ürün Yönetimi</h2>
 						<button
-							onClick={fetchDashboardData}
-							style={{
-								padding: '8px 16px',
-								background: 'rgba(255,255,255,0.1)',
-								color: '#fff',
-								border: '1px solid rgba(255,255,255,0.2)',
-								borderRadius: '8px',
-								cursor: 'pointer',
-								fontSize: '0.9rem',
-								transition: 'all 0.3s ease'
-							}}
+							onClick={() => fetchProducts()}
+							className="refresh-button"
+							disabled={loadingProducts}
 						>
-							🔄 Yenile
+							{loadingProducts ? 'Yükleniyor...' : '🔄 Yenile'}
 						</button>
 					</div>
-					<ProductTable />
+
+					{loadingProducts ? (
+						<div className="products-loading">Ürünler yükleniyor...</div>
+					) : (
+						<div className="table-container">
+							<ProductTable products={products} onProductUpdated={fetchProducts} />
+						</div>
+					)}
+
+					{/* Pagination Controls */}
+					{totalCount > 0 && (
+						<div className="pagination">
+							<button
+								onClick={() => handlePageChange(currentPage - 1)}
+								disabled={currentPage === 1}
+								className="pagination-btn"
+							>
+								Önceki
+							</button>
+							<span className="pagination-info">
+								Sayfa {currentPage} / {totalPages}
+							</span>
+							<button
+								onClick={() => handlePageChange(currentPage + 1)}
+								disabled={currentPage === totalPages}
+								className="pagination-btn"
+							>
+								Sonraki
+							</button>
+						</div>
+					)}
 				</div>
 			)}
+
+			<style>{`
+				.admin-page {
+					width: 100%;
+					min-height: calc(100vh - 120px);
+					padding: 0;
+				}
+
+				/* Header Styles */
+				.admin-header {
+					background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+					border-radius: 16px;
+					padding: clamp(1.5rem, 4vw, 2rem);
+					margin: 1rem;
+					margin-bottom: 2rem;
+					text-align: center;
+					box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+				}
+
+				.admin-title {
+					font-size: clamp(1.5rem, 4vw, 2rem);
+					font-weight: 700;
+					margin: 0;
+					background: linear-gradient(45deg, #fff, #e0e0e0);
+					-webkit-background-clip: text;
+					-webkit-text-fill-color: transparent;
+					background-clip: text;
+				}
+
+				.admin-subtitle {
+					font-size: clamp(0.9rem, 2vw, 1rem);
+					opacity: 0.9;
+					margin: 0.5rem 0 0 0;
+					color: #fff;
+				}
+
+				/* Navigation Tabs */
+				.admin-tabs {
+					display: flex;
+					gap: 0.5rem;
+					margin: 1rem;
+					margin-bottom: 2rem;
+					background: rgba(255,255,255,0.05);
+					border-radius: 12px;
+					padding: 0.25rem;
+					overflow-x: auto;
+				}
+
+				.tab-button {
+					flex: 1;
+					padding: clamp(0.75rem, 2vw, 1rem);
+					background: transparent;
+					color: #fff;
+					border: none;
+					border-radius: 8px;
+					cursor: pointer;
+					font-size: clamp(0.85rem, 2vw, 1rem);
+					font-weight: 600;
+					transition: all 0.3s ease;
+					display: flex;
+					align-items: center;
+					justify-content: center;
+					gap: 0.5rem;
+					white-space: nowrap;
+					min-width: fit-content;
+				}
+
+				.tab-button.active {
+					background: rgba(255,255,255,0.2);
+				}
+
+				.tab-button:hover:not(.active) {
+					background: rgba(255,255,255,0.1);
+				}
+
+				.tab-icon {
+					font-size: 1.1em;
+				}
+
+				/* Overview Content */
+				.overview-content {
+					margin: 1rem;
+				}
+
+				.stats-loading {
+					text-align: center;
+					padding: 2rem;
+					color: #fff;
+					font-size: 1.1rem;
+				}
+
+				.stats-grid {
+					display: grid;
+					grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
+					gap: clamp(1rem, 3vw, 1.5rem);
+					margin-bottom: 2rem;
+				}
+
+				.stat-card {
+					background: rgba(255,255,255,0.05);
+					backdrop-filter: blur(10px);
+					border-radius: 12px;
+					padding: clamp(1rem, 3vw, 1.5rem);
+					border: 1px solid rgba(255,255,255,0.1);
+					text-align: center;
+					transition: transform 0.3s ease, box-shadow 0.3s ease;
+				}
+
+				.stat-card:hover {
+					transform: translateY(-2px);
+					box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+				}
+
+				.stat-icon {
+					font-size: clamp(1.5rem, 4vw, 2rem);
+					margin-bottom: 0.5rem;
+				}
+
+				.stat-value {
+					font-size: clamp(1.5rem, 4vw, 2rem);
+					font-weight: 700;
+					margin: 0 0 0.25rem 0;
+				}
+
+				.stat-title {
+					color: #ccc;
+					margin: 0;
+					font-size: clamp(0.85rem, 2vw, 0.9rem);
+				}
+
+				.stat-subtitle {
+					color: #888;
+					margin: 0.25rem 0 0 0;
+					font-size: clamp(0.75rem, 1.5vw, 0.8rem);
+				}
+
+				/* Low Stock Alert */
+				.low-stock-alert {
+					background: rgba(255, 193, 7, 0.1);
+					border-radius: 16px;
+					padding: clamp(1rem, 3vw, 1.5rem);
+					margin-bottom: 2rem;
+					border: 1px solid rgba(255, 193, 7, 0.3);
+				}
+
+				.alert-title {
+					color: #FFC107;
+					font-size: clamp(1.1rem, 3vw, 1.3rem);
+					font-weight: 700;
+					margin: 0 0 1rem 0;
+					display: flex;
+					align-items: center;
+					gap: 0.5rem;
+				}
+
+				.low-stock-grid {
+					display: grid;
+					grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+					gap: 1rem;
+				}
+
+				.low-stock-item {
+					background: rgba(255,255,255,0.05);
+					border-radius: 8px;
+					padding: 0.75rem;
+					display: flex;
+					justify-content: space-between;
+					align-items: center;
+					gap: 1rem;
+				}
+
+				.product-info {
+					flex: 1;
+				}
+
+				.product-name {
+					color: #fff;
+					margin: 0;
+					font-weight: 600;
+					font-size: 0.9rem;
+				}
+
+				.product-sku {
+					color: #ccc;
+					margin: 0.25rem 0 0 0;
+					font-size: 0.8rem;
+				}
+
+				.stock-badge {
+					background: #FFC107;
+					color: #000;
+					padding: 0.25rem 0.5rem;
+					border-radius: 12px;
+					font-size: 0.8rem;
+					font-weight: 600;
+					white-space: nowrap;
+				}
+
+				.remaining-count {
+					color: #FFC107;
+					text-align: center;
+					margin: 1rem 0 0 0;
+					font-size: 0.9rem;
+				}
+
+				/* Add Product Content */
+				.add-product-content {
+					background: rgba(255,255,255,0.05);
+					backdrop-filter: blur(10px);
+					border-radius: 16px;
+					padding: clamp(1rem, 3vw, 2rem);
+					margin: 1rem;
+					border: 1px solid rgba(255,255,255,0.1);
+					box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+				}
+
+				/* Products Content */
+				.products-content {
+					background: rgba(255,255,255,0.05);
+					backdrop-filter: blur(10px);
+					border-radius: 16px;
+					padding: clamp(1rem, 3vw, 2rem);
+					margin: 1rem;
+					border: 1px solid rgba(255,255,255,0.1);
+					box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+				}
+
+				.products-header {
+					display: flex;
+					justify-content: space-between;
+					align-items: center;
+					margin-bottom: 1.5rem;
+					gap: 1rem;
+				}
+
+				.products-title {
+					font-size: clamp(1.2rem, 3vw, 1.5rem);
+					font-weight: 700;
+					color: #fff;
+					margin: 0;
+				}
+
+				.refresh-button {
+					padding: 0.5rem 1rem;
+					background: rgba(255,255,255,0.1);
+					color: #fff;
+					border: 1px solid rgba(255,255,255,0.2);
+					border-radius: 8px;
+					cursor: pointer;
+					font-size: 0.9rem;
+					transition: all 0.3s ease;
+					white-space: nowrap;
+				}
+
+				.refresh-button:hover:not(:disabled) {
+					background: rgba(255,255,255,0.2);
+				}
+
+				.refresh-button:disabled {
+					opacity: 0.6;
+					cursor: not-allowed;
+				}
+
+				.products-loading {
+					text-align: center;
+					color: #fff;
+					padding: 2rem;
+					font-size: 1.1rem;
+				}
+
+				.table-container {
+					overflow-x: auto;
+					border-radius: 8px;
+				}
+
+				/* Pagination */
+				.pagination {
+					display: flex;
+					justify-content: center;
+					align-items: center;
+					gap: 1rem;
+					margin-top: 1.5rem;
+					flex-wrap: wrap;
+				}
+
+				.pagination-btn {
+					padding: 0.5rem 1rem;
+					background: rgba(255,255,255,0.1);
+					color: #fff;
+					border: none;
+					border-radius: 8px;
+					cursor: pointer;
+					transition: all 0.3s ease;
+				}
+
+				.pagination-btn:hover:not(:disabled) {
+					background: rgba(255,255,255,0.2);
+				}
+
+				.pagination-btn:disabled {
+					opacity: 0.5;
+					cursor: not-allowed;
+				}
+
+				.pagination-info {
+					color: #fff;
+					font-size: 0.9rem;
+				}
+
+				/* Mobile Responsive */
+				@media (max-width: 768px) {
+					.admin-page {
+						padding: 0;
+					}
+
+					.admin-header {
+						margin: 0.5rem;
+						border-radius: 12px;
+					}
+
+					.admin-tabs {
+						margin: 0.5rem;
+						padding: 0.25rem;
+					}
+
+					.tab-button {
+						padding: 0.75rem 0.5rem;
+						font-size: 0.85rem;
+					}
+
+					.tab-label {
+						display: none;
+					}
+
+					.overview-content,
+					.add-product-content,
+					.products-content {
+						margin: 0.5rem;
+						padding: 1rem;
+						border-radius: 12px;
+					}
+
+					.stats-grid {
+						grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+						gap: 1rem;
+					}
+
+					.low-stock-grid {
+						grid-template-columns: 1fr;
+					}
+
+					.products-header {
+						flex-direction: column;
+						align-items: stretch;
+						gap: 1rem;
+					}
+
+					.refresh-button {
+						align-self: center;
+						width: fit-content;
+					}
+				}
+
+				@media (max-width: 480px) {
+					.admin-header {
+						padding: 1rem;
+					}
+
+					.stats-grid {
+						grid-template-columns: 1fr;
+					}
+
+					.low-stock-item {
+						flex-direction: column;
+						align-items: flex-start;
+						gap: 0.5rem;
+					}
+
+					.stock-badge {
+						align-self: flex-end;
+					}
+				}
+
+				/* High DPI adjustments */
+				@media (min-resolution: 150dpi) {
+					.stat-card {
+						padding: 1.5rem;
+					}
+					
+					.admin-tabs {
+						padding: 0.5rem;
+					}
+				}
+			`}</style>
 		</div>
 	);
 };

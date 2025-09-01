@@ -1,73 +1,22 @@
 // src/components/ProductTable.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { useDispatch } from 'react-redux';
 import { setNotification } from '../store/notificationSlice';
 import EditProductModal from './EditProductModal';
 import type { ProductWithStock, StockStatus } from '../types';
 
-const ProductTable: React.FC = () => {
+interface ProductTableProps {
+    products: ProductWithStock[];
+    onProductUpdated: () => void;
+}
+
+const ProductTable: React.FC<ProductTableProps> = ({ products, onProductUpdated }) => {
     const dispatch = useDispatch();
-    const [products, setProducts] = useState<ProductWithStock[]>([]);
-    const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState<ProductWithStock | null>(null);
     const [showStockModal, setShowStockModal] = useState(false);
     const [selectedProductForStock, setSelectedProductForStock] = useState<ProductWithStock | null>(null);
-
-    useEffect(() => {
-        fetchProducts();
-    }, []);
-
-    const fetchProducts = async () => {
-        setLoading(true);
-        try {
-            const { data, error } = await supabase
-                .from('products')
-                .select(`
-                    *,
-                    inventory:inventory(
-                        id,
-                        quantity,
-                        reserved_quantity,
-                        min_stock_level,
-                        max_stock_level,
-                        cost_price,
-                        updated_at
-                    )
-                `)
-                .order('id', { ascending: false });
-
-            if (error) {
-                dispatch(setNotification({ message: 'Ürünler yüklenirken hata oluştu: ' + error.message, type: 'error' }));
-            } else {
-                // Stok bilgilerini hesapla
-                const productsWithStock: ProductWithStock[] = (data || []).map(product => {
-                    const inventory = Array.isArray(product.inventory) ? product.inventory[0] : product.inventory;
-                    const availableStock = inventory ? inventory.quantity - inventory.reserved_quantity : 0;
-                    
-                    let stockStatus: StockStatus = 'IN_STOCK';
-                    if (availableStock <= 0) {
-                        stockStatus = 'OUT_OF_STOCK';
-                    } else if (inventory && availableStock <= inventory.min_stock_level) {
-                        stockStatus = 'LOW_STOCK';
-                    }
-
-                    return {
-                        ...product,
-                        inventory,
-                        available_stock: availableStock,
-                        stock_status: stockStatus
-                    };
-                });
-
-                setProducts(productsWithStock);
-            }
-        } catch (error) {
-            dispatch(setNotification({ message: 'Beklenmedik hata: ' + error.message, type: 'error' }));
-        }
-        setLoading(false);
-    };
 
     const handleDelete = async (productId: number) => {
         if (window.confirm('Bu ürünü silmek istediğinizden emin misiniz?')) {
@@ -80,7 +29,7 @@ const ProductTable: React.FC = () => {
                 dispatch(setNotification({ message: 'Ürün silinirken bir hata oluştu: ' + error.message, type: 'error' }));
             } else {
                 dispatch(setNotification({ message: 'Ürün başarıyla silindi.', type: 'success' }));
-                fetchProducts();
+                onProductUpdated();
             }
         }
     };
@@ -98,11 +47,13 @@ const ProductTable: React.FC = () => {
     const handleModalClose = () => {
         setShowModal(false);
         setSelectedProduct(null);
+        onProductUpdated();
     };
 
     const handleStockModalClose = () => {
         setShowStockModal(false);
         setSelectedProductForStock(null);
+        onProductUpdated();
     };
 
     const getStockStatusBadge = (stockStatus: StockStatus, availableStock: number) => {
@@ -128,7 +79,8 @@ const ProductTable: React.FC = () => {
         );
     };
 
-    const StockModal: React.FC<{ product: ProductWithStock; onClose: () => void }> = ({ product, onClose }) => {
+    const StockModal: React.FC<{ product: ProductWithStock; onClose: () => void; onProductUpdated: () => void; }> = 
+        ({ product, onClose, onProductUpdated }) => {
         const [stockQuantity, setStockQuantity] = useState('');
         const [stockType, setStockType] = useState<'IN' | 'OUT' | 'ADJUSTMENT'>('IN');
         const [reason, setReason] = useState('');
@@ -154,7 +106,7 @@ const ProductTable: React.FC = () => {
                     dispatch(setNotification({ message: 'Stok güncellenirken hata: ' + error.message, type: 'error' }));
                 } else {
                     dispatch(setNotification({ message: 'Stok başarıyla güncellendi', type: 'success' }));
-                    fetchProducts();
+                    onProductUpdated();
                     onClose();
                 }
             } catch (error) {
@@ -224,17 +176,13 @@ const ProductTable: React.FC = () => {
         );
     };
 
-    if (loading) {
-        return <p>Ürünler yükleniyor...</p>;
-    }
-    
     return (
         <div className="table-responsive">
             {showModal && selectedProduct && (
                 <EditProductModal
-                    product={selectedProduct as any}
+                    product={selectedProduct}
                     onClose={handleModalClose}
-                    onProductUpdated={fetchProducts}
+                    onProductUpdated={onProductUpdated}
                 />
             )}
             
@@ -242,6 +190,7 @@ const ProductTable: React.FC = () => {
                 <StockModal
                     product={selectedProductForStock}
                     onClose={handleStockModalClose}
+                    onProductUpdated={onProductUpdated}
                 />
             )}
 
@@ -258,90 +207,96 @@ const ProductTable: React.FC = () => {
                     </tr>
                 </thead>
                 <tbody>
-                    {products.map((product) => (
-                        <tr key={product.id}>
-                            <td>
-                                <img 
-                                    src={product.image} 
-                                    alt={product.title} 
-                                    style={{ 
-                                        width: '50px', 
-                                        height: '50px', 
-                                        objectFit: 'cover',
-                                        borderRadius: '4px'
-                                    }} 
-                                />
-                            </td>
-                            <td>
-                                <div>{product.title}</div>
-                                {product.rating && product.rating > 0 && (
-                                    <small className="text-muted">
-                                        {Array(Math.round(product.rating)).fill('⭐').join('')} 
-                                        ({product.rating_count || 0})
-                                    </small>
-                                )}
-                            </td>
-                            <td>
-                                <code className="text-info">{product.sku || 'N/A'}</code>
-                            </td>
-                            <td>
-                                <strong>{product.price} TL</strong>
-                                {product.inventory?.cost_price && (
-                                    <div>
-                                        <small className="text-muted">
-                                            Maliyet: {product.inventory.cost_price} TL
-                                        </small>
-                                    </div>
-                                )}
-                            </td>
-                            <td>
-                                <span className="badge bg-secondary">{product.category}</span>
-                            </td>
-                            <td>
-                                {getStockStatusBadge(
-                                    product.stock_status || 'OUT_OF_STOCK', 
-                                    product.available_stock || 0
-                                )}
-                                {product.inventory?.reserved_quantity > 0 && (
-                                    <div>
-                                        <small className="text-warning">
-                                            Rezerve: {product.inventory.reserved_quantity}
-                                        </small>
-                                    </div>
-                                )}
-                                {product.inventory && (
-                                    <div>
-                                        <small className="text-muted">
-                                            Min: {product.inventory.min_stock_level} | 
-                                            Max: {product.inventory.max_stock_level}
-                                        </small>
-                                    </div>
-                                )}
-                            </td>
-                            <td>
-                                <div className="btn-group-vertical btn-group-sm">
-                                    <button 
-                                        className="btn btn-warning btn-sm mb-1" 
-                                        onClick={() => handleEditClick(product)}
-                                    >
-                                        Düzenle
-                                    </button>
-                                    <button 
-                                        className="btn btn-info btn-sm mb-1" 
-                                        onClick={() => handleStockClick(product)}
-                                    >
-                                        Stok
-                                    </button>
-                                    <button 
-                                        className="btn btn-danger btn-sm"
-                                        onClick={() => handleDelete(product.id)}
-                                    >
-                                        Sil
-                                    </button>
-                                </div>
-                            </td>
+                    {products.length === 0 ? (
+                        <tr>
+                            <td colSpan={7} className="text-center">Hiç ürün bulunamadı.</td>
                         </tr>
-                    ))}
+                    ) : (
+                        products.map((product) => (
+                            <tr key={product.id}>
+                                <td>
+                                    <img 
+                                        src={product.image} 
+                                        alt={product.title} 
+                                        style={{ 
+                                            width: '50px', 
+                                            height: '50px', 
+                                            objectFit: 'cover',
+                                            borderRadius: '4px'
+                                        }} 
+                                    />
+                                </td>
+                                <td>
+                                    <div>{product.title}</div>
+                                    {product.rating && product.rating > 0 && (
+                                        <small className="text-muted">
+                                            {Array(Math.round(product.rating)).fill('⭐').join('')} 
+                                            ({product.rating_count || 0})
+                                        </small>
+                                    )}
+                                </td>
+                                <td>
+                                    <code className="text-info">{product.sku || 'N/A'}</code>
+                                </td>
+                                <td>
+                                    <strong>{product.price} TL</strong>
+                                    {product.inventory?.cost_price && (
+                                        <div>
+                                            <small className="text-muted">
+                                                Maliyet: {product.inventory.cost_price} TL
+                                            </small>
+                                        </div>
+                                    )}
+                                </td>
+                                <td>
+                                    <span className="badge bg-secondary">{product.category}</span>
+                                </td>
+                                <td>
+                                    {getStockStatusBadge(
+                                        product.stock_status, 
+                                        product.available_stock
+                                    )}
+                                    {product.inventory?.reserved_quantity > 0 && (
+                                        <div>
+                                            <small className="text-warning">
+                                                Rezerve: {product.inventory.reserved_quantity}
+                                            </small>
+                                        </div>
+                                    )}
+                                    {product.inventory && (
+                                        <div>
+                                            <small className="text-muted">
+                                                Min: {product.inventory.min_stock_level} | 
+                                                Max: {product.inventory.max_stock_level}
+                                            </small>
+                                        </div>
+                                    )}
+                                </td>
+                                <td>
+                                    <div className="btn-group-vertical btn-group-sm">
+                                        <button 
+                                            className="btn btn-warning btn-sm mb-1" 
+                                            onClick={() => handleEditClick(product)}
+                                        >
+                                            Düzenle
+                                        </button>
+                                        <button 
+                                            className="btn btn-info btn-sm mb-1" 
+                                            onClick={() => handleStockClick(product)}
+                                        >
+                                            Stok
+                                        </button>
+                                        <button 
+                                            className="btn btn-danger btn-sm"
+                                            onClick={() => handleDelete(product.id)}
+                                        >
+                                            Sil
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        ))
+                    )}
                 </tbody>
             </table>
         </div>

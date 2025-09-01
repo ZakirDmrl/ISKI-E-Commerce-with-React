@@ -155,35 +155,12 @@ const ProductDetail = () => {
         const isLowStock = product.stock_status === 'LOW_STOCK';
 
         return (
-            <div style={{
-                padding: '15px',
-                background: isOutOfStock 
-                    ? 'rgba(220, 53, 69, 0.1)' 
-                    : isLowStock 
-                        ? 'rgba(255, 193, 7, 0.1)'
-                        : 'rgba(40, 167, 69, 0.1)',
-                borderRadius: '12px',
-                border: `1px solid ${isOutOfStock 
-                    ? 'rgba(220, 53, 69, 0.3)' 
-                    : isLowStock 
-                        ? 'rgba(255, 193, 7, 0.3)'
-                        : 'rgba(40, 167, 69, 0.3)'}`,
-                marginBottom: '20px'
-            }}>
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    marginBottom: '8px'
-                }}>
-                    <span style={{ fontSize: '1.2rem' }}>
+            <div className={`stock-status ${isOutOfStock ? 'out-of-stock' : isLowStock ? 'low-stock' : 'in-stock'}`}>
+                <div className="stock-header">
+                    <span className="stock-icon">
                         {isOutOfStock ? '❌' : isLowStock ? '⚠️' : '✅'}
                     </span>
-                    <span style={{
-                        color: isOutOfStock ? '#dc3545' : isLowStock ? '#ffc107' : '#28a745',
-                        fontWeight: '600',
-                        fontSize: '1rem'
-                    }}>
+                    <span className="stock-text">
                         {isOutOfStock 
                             ? 'Stokta Yok' 
                             : isLowStock 
@@ -193,14 +170,14 @@ const ProductDetail = () => {
                 </div>
                 
                 {product.inventory?.reserved_quantity > 0 && (
-                    <div style={{ fontSize: '0.9rem', color: '#ccc' }}>
+                    <div className="reserved-info">
                         Rezerve edilmiş: {product.inventory.reserved_quantity} adet
                     </div>
                 )}
 
                 {product.sku && (
-                    <div style={{ fontSize: '0.9rem', color: '#aaa', marginTop: '5px' }}>
-                        SKU: <code style={{ color: '#17a2b8' }}>{product.sku}</code>
+                    <div className="sku-info">
+                        SKU: <code className="sku-code">{product.sku}</code>
                     </div>
                 )}
             </div>
@@ -209,60 +186,59 @@ const ProductDetail = () => {
 
     if (loading) {
         return (
-            <div style={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                minHeight: '60vh',
-                flexDirection: 'column',
-                gap: '20px'
-            }}>
-                <div style={{
-                    width: '50px',
-                    height: '50px',
-                    border: '4px solid #333',
-                    borderTop: '4px solid #007bff',
-                    borderRadius: '50%',
-                    animation: 'spin 1s linear infinite'
-                }}></div>
-                <p style={{ color: '#fff', fontSize: '1.2rem' }}>Ürün detayları yükleniyor...</p>
+            <div className="loading-container">
+                <div className="loading-content">
+                    <div className="loading-spinner"></div>
+                    <p>Ürün detayları yükleniyor...</p>
+                </div>
+                <style>{`
+                    .loading-container {
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        min-height: 60vh;
+                        flex-direction: column;
+                        gap: 20px;
+                    }
+                    .loading-content {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 20px;
+                    }
+                    .loading-spinner {
+                        width: 50px;
+                        height: 50px;
+                        border: 4px solid #333;
+                        border-top: 4px solid #007bff;
+                        border-radius: 50%;
+                        animation: spin 1s linear infinite;
+                    }
+                    .loading-content p {
+                        color: #fff;
+                        font-size: 1.2rem;
+                        margin: 0;
+                    }
+                `}</style>
             </div>
         );
     }
 
     if (error) {
         return (
-            <div style={{
-                textAlign: 'center',
-                padding: '50px 20px',
-                background: 'rgba(255,255,255,0.05)',
-                borderRadius: '16px',
-                border: '2px dashed rgba(255,255,255,0.2)'
-            }}>
-                <div style={{ fontSize: '3rem', marginBottom: '15px' }}>⚠️</div>
-                <h3 style={{ fontSize: '1.5rem', marginBottom: '10px', color: '#ff6b6b' }}>
-                    Hata
-                </h3>
-                <p style={{ color: '#ccc', fontSize: '1rem' }}>
-                    {error}
-                </p>
+            <div className="error-state">
+                <div className="error-icon">⚠️</div>
+                <h3 className="error-title">Hata</h3>
+                <p className="error-message">{error}</p>
             </div>
         );
     }
 
     if (!product) {
         return (
-            <div style={{
-                textAlign: 'center',
-                padding: '50px 20px',
-                background: 'rgba(255,255,255,0.05)',
-                borderRadius: '16px',
-                border: '2px dashed rgba(255,255,255,0.2)'
-            }}>
-                <div style={{ fontSize: '3rem', marginBottom: '15px' }}>🔍</div>
-                <h3 style={{ fontSize: '1.5rem', marginBottom: '10px', color: '#fff' }}>
-                    Ürün Bulunamadı
-                </h3>
+            <div className="not-found-state">
+                <div className="not-found-icon">🔍</div>
+                <h3 className="not-found-title">Ürün Bulunamadı</h3>
             </div>
         );
     }
@@ -270,115 +246,46 @@ const ProductDetail = () => {
     const isOutOfStock = product.stock_status === 'OUT_OF_STOCK';
 
     return (
-        <div style={{ width: '100%', padding: '0' }}>
+        <div className="product-detail-page">
             {/* Product Detail Card */}
-            <div style={{
-                background: 'rgba(255,255,255,0.05)',
-                backdropFilter: 'blur(10px)',
-                borderRadius: '16px',
-                padding: '30px',
-                marginBottom: '30px',
-                border: '1px solid rgba(255,255,255,0.1)',
-                boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
-            }}>
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
-                    gap: '30px',
-                    alignItems: 'start'
-                }}>
+            <div className="product-detail-card">
+                <div className="product-content">
                     {/* Product Image */}
-                    <div style={{
-                        display: 'flex',
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                        background: 'rgba(255,255,255,0.05)',
-                        borderRadius: '12px',
-                        padding: '20px',
-                        position: 'relative'
-                    }}>
-                        <img 
-                            src={product.image} 
-                            alt={product.title} 
-                            style={{ 
-                                maxWidth: '100%',
-                                maxHeight: '400px', 
-                                objectFit: 'contain',
-                                borderRadius: '8px',
-                                filter: isOutOfStock ? 'grayscale(30%)' : 'none'
-                            }}
-                        />
-                        {isOutOfStock && (
-                            <div style={{
-                                position: 'absolute',
-                                top: '20px',
-                                right: '20px',
-                                background: 'rgba(220, 53, 69, 0.9)',
-                                color: 'white',
-                                padding: '8px 12px',
-                                borderRadius: '8px',
-                                fontWeight: 'bold',
-                                fontSize: '0.9rem'
-                            }}>
-                                STOKTA YOK
-                            </div>
-                        )}
+                    <div className="product-image-section">
+                        <div className="image-container">
+                            <img 
+                                src={product.image} 
+                                alt={product.title} 
+                                className={`product-image ${isOutOfStock ? 'out-of-stock' : ''}`}
+                            />
+                            {isOutOfStock && (
+                                <div className="out-of-stock-badge">
+                                    STOKTA YOK
+                                </div>
+                            )}
+                        </div>
                     </div>
                     
                     {/* Product Info */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                        <div>
-                            <span style={{
-                                background: 'linear-gradient(45deg, #667eea, #764ba2)',
-                                color: 'white',
-                                padding: '6px 12px',
-                                borderRadius: '20px',
-                                fontSize: '0.85rem',
-                                fontWeight: '500'
-                            }}>
-                                {product.category}
-                            </span>
+                    <div className="product-info-section">
+                        <div className="category-badge">
+                            {product.category}
                         </div>
                         
-                        <h1 style={{
-                            fontSize: '2rem',
-                            fontWeight: '700',
-                            color: '#fff',
-                            margin: '0',
-                            lineHeight: '1.2'
-                        }}>
+                        <h1 className="product-title">
                             {product.title}
                         </h1>
                         
-                        <div style={{
-                            padding: '20px',
-                            background: 'rgba(255,255,255,0.05)',
-                            borderRadius: '12px',
-                            border: '1px solid rgba(255,255,255,0.1)'
-                        }}>
-                            <p style={{
-                                color: '#e0e0e0',
-                                fontSize: '1rem',
-                                lineHeight: '1.6',
-                                margin: '0'
-                            }}>
-                                {product.description}
-                            </p>
+                        <div className="product-description">
+                            <p>{product.description}</p>
                         </div>
                         
                         {product.rating && product.rating > 0 && (
-                            <div style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '15px',
-                                padding: '15px',
-                                background: 'rgba(255,255,255,0.05)',
-                                borderRadius: '12px'
-                            }}>
-                                <div style={{ fontSize: '1.5rem' }}>
+                            <div className="product-rating">
+                                <div className="rating-stars">
                                     {Array(Math.round(product.rating)).fill('⭐').join('')}
                                 </div>
-                                <span style={{ color: '#ccc', fontSize: '0.9rem' }}>
+                                <span className="rating-text">
                                     {product.rating.toFixed(1)} ({product.rating_count || 0} değerlendirme)
                                 </span>
                             </div>
@@ -387,50 +294,14 @@ const ProductDetail = () => {
                         {/* Stok Durumu */}
                         {getStockStatusDisplay()}
                         
-                        <div style={{
-                            fontSize: '2.5rem',
-                            fontWeight: '700',
-                            background: 'linear-gradient(45deg, #4CAF50, #45a049)',
-                            WebkitBackgroundClip: 'text',
-                            WebkitTextFillColor: 'transparent',
-                            backgroundClip: 'text'
-                        }}>
+                        <div className="product-price">
                             {typeof product.price === 'number' ? product.price.toFixed(2) : product.price} TL
                         </div>
                         
                         <button 
                             onClick={handleAddToCart}
                             disabled={isOutOfStock || addingToCart}
-                            style={{
-                                width: '100%',
-                                padding: '15px 20px',
-                                background: isOutOfStock 
-                                    ? 'linear-gradient(45deg, #6c757d, #5a6268)'
-                                    : 'linear-gradient(45deg, #4CAF50, #45a049)',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '12px',
-                                fontSize: '1.1rem',
-                                fontWeight: '600',
-                                cursor: isOutOfStock || addingToCart ? 'not-allowed' : 'pointer',
-                                transition: 'all 0.3s ease',
-                                boxShadow: isOutOfStock 
-                                    ? 'none' 
-                                    : '0 4px 15px rgba(76, 175, 80, 0.4)',
-                                opacity: isOutOfStock ? 0.6 : 1
-                            }}
-                            onMouseEnter={(e) => {
-                                if (!isOutOfStock && !addingToCart) {
-                                    e.currentTarget.style.transform = 'translateY(-2px)';
-                                    e.currentTarget.style.boxShadow = '0 8px 25px rgba(76, 175, 80, 0.6)';
-                                }
-                            }}
-                            onMouseLeave={(e) => {
-                                if (!isOutOfStock && !addingToCart) {
-                                    e.currentTarget.style.transform = 'translateY(0)';
-                                    e.currentTarget.style.boxShadow = '0 4px 15px rgba(76, 175, 80, 0.4)';
-                                }
-                            }}
+                            className={`add-to-cart-btn ${isOutOfStock ? 'disabled' : ''} ${addingToCart ? 'loading' : ''}`}
                         >
                             {addingToCart 
                                 ? '🔄 Ekleniyor...' 
@@ -444,6 +315,384 @@ const ProductDetail = () => {
             
             {/* Comments Section */}
             {product && <Comments productId={product.id} />}
+
+            <style>{`
+                .product-detail-page {
+                    width: 100%;
+                    padding: 0;
+                    min-height: calc(100vh - 120px);
+                }
+
+                .product-detail-card {
+                    background: rgba(255,255,255,0.05);
+                    backdrop-filter: blur(10px);
+                    border-radius: 16px;
+                    padding: clamp(1rem, 3vw, 2rem);
+                    margin: 1rem;
+                    margin-bottom: 2rem;
+                    border: 1px solid rgba(255,255,255,0.1);
+                    box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+                }
+
+                .product-content {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: clamp(1.5rem, 4vw, 2rem);
+                    align-items: start;
+                }
+
+                /* Product Image Section */
+                .product-image-section {
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                }
+
+                .image-container {
+                    background: rgba(255,255,255,0.05);
+                    border-radius: 12px;
+                    padding: clamp(1rem, 3vw, 1.5rem);
+                    position: relative;
+                    width: 100%;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    min-height: 300px;
+                }
+
+                .product-image {
+                    max-width: 100%;
+                    max-height: clamp(300px, 50vh, 400px);
+                    object-fit: contain;
+                    border-radius: 8px;
+                    transition: filter 0.3s ease;
+                }
+
+                .product-image.out-of-stock {
+                    filter: grayscale(30%);
+                }
+
+                .out-of-stock-badge {
+                    position: absolute;
+                    top: 1rem;
+                    right: 1rem;
+                    background: rgba(220, 53, 69, 0.9);
+                    color: white;
+                    padding: 0.5rem 0.75rem;
+                    border-radius: 8px;
+                    font-weight: bold;
+                    font-size: 0.85rem;
+                    backdrop-filter: blur(10px);
+                }
+
+                /* Product Info Section */
+                .product-info-section {
+                    display: flex;
+                    flex-direction: column;
+                    gap: clamp(1rem, 3vw, 1.5rem);
+                }
+
+                .category-badge {
+                    background: linear-gradient(45deg, #667eea, #764ba2);
+                    color: white;
+                    padding: 0.5rem 0.75rem;
+                    border-radius: 20px;
+                    font-size: 0.85rem;
+                    font-weight: 500;
+                    align-self: flex-start;
+                    white-space: nowrap;
+                }
+
+                .product-title {
+                    font-size: clamp(1.5rem, 4vw, 2rem);
+                    font-weight: 700;
+                    color: #fff;
+                    margin: 0;
+                    line-height: 1.2;
+                }
+
+                .product-description {
+                    padding: clamp(1rem, 3vw, 1.5rem);
+                    background: rgba(255,255,255,0.05);
+                    border-radius: 12px;
+                    border: 1px solid rgba(255,255,255,0.1);
+                }
+
+                .product-description p {
+                    color: #e0e0e0;
+                    font-size: clamp(0.9rem, 2vw, 1rem);
+                    line-height: 1.6;
+                    margin: 0;
+                }
+
+                .product-rating {
+                    display: flex;
+                    align-items: center;
+                    gap: 1rem;
+                    padding: 1rem;
+                    background: rgba(255,255,255,0.05);
+                    border-radius: 12px;
+                    flex-wrap: wrap;
+                }
+
+                .rating-stars {
+                    font-size: clamp(1.2rem, 3vw, 1.5rem);
+                }
+
+                .rating-text {
+                    color: #ccc;
+                    font-size: clamp(0.85rem, 2vw, 0.9rem);
+                }
+
+                /* Stock Status Styles */
+                .stock-status {
+                    padding: 1rem;
+                    border-radius: 12px;
+                    border: 1px solid;
+                }
+
+                .stock-status.out-of-stock {
+                    background: rgba(220, 53, 69, 0.1);
+                    border-color: rgba(220, 53, 69, 0.3);
+                }
+
+                .stock-status.low-stock {
+                    background: rgba(255, 193, 7, 0.1);
+                    border-color: rgba(255, 193, 7, 0.3);
+                }
+
+                .stock-status.in-stock {
+                    background: rgba(40, 167, 69, 0.1);
+                    border-color: rgba(40, 167, 69, 0.3);
+                }
+
+                .stock-header {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.75rem;
+                    margin-bottom: 0.5rem;
+                }
+
+                .stock-icon {
+                    font-size: 1.2rem;
+                }
+
+                .stock-text {
+                    font-weight: 600;
+                    font-size: clamp(0.9rem, 2vw, 1rem);
+                }
+
+                .stock-status.out-of-stock .stock-text {
+                    color: #dc3545;
+                }
+
+                .stock-status.low-stock .stock-text {
+                    color: #ffc107;
+                }
+
+                .stock-status.in-stock .stock-text {
+                    color: #28a745;
+                }
+
+                .reserved-info {
+                    font-size: 0.85rem;
+                    color: #ccc;
+                    margin-bottom: 0.25rem;
+                }
+
+                .sku-info {
+                    font-size: 0.85rem;
+                    color: #aaa;
+                }
+
+                .sku-code {
+                    color: #17a2b8;
+                    background: rgba(23,162,184,0.1);
+                    padding: 0.2rem 0.4rem;
+                    border-radius: 4px;
+                }
+
+                /* Product Price */
+                .product-price {
+                    font-size: clamp(2rem, 5vw, 2.5rem);
+                    font-weight: 700;
+                    background: linear-gradient(45deg, #4CAF50, #45a049);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    background-clip: text;
+                }
+
+                /* Add to Cart Button */
+                .add-to-cart-btn {
+                    width: 100%;
+                    padding: clamp(0.75rem, 2vw, 1rem);
+                    background: linear-gradient(45deg, #4CAF50, #45a049);
+                    color: white;
+                    border: none;
+                    border-radius: 12px;
+                    font-size: clamp(1rem, 2vw, 1.1rem);
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
+                }
+
+                .add-to-cart-btn:hover:not(.disabled):not(.loading) {
+                    transform: translateY(-2px);
+                    box-shadow: 0 8px 25px rgba(76, 175, 80, 0.6);
+                }
+
+                .add-to-cart-btn.disabled {
+                    background: linear-gradient(45deg, #6c757d, #5a6268);
+                    cursor: not-allowed;
+                    box-shadow: none;
+                    opacity: 0.6;
+                }
+
+                .add-to-cart-btn.loading {
+                    cursor: not-allowed;
+                }
+
+                /* Error and Not Found States */
+                .error-state,
+                .not-found-state {
+                    text-align: center;
+                    padding: clamp(2rem, 5vw, 3rem);
+                    background: rgba(255,255,255,0.05);
+                    border-radius: 16px;
+                    border: 2px dashed rgba(255,255,255,0.2);
+                    margin: 1rem;
+                }
+
+                .error-icon,
+                .not-found-icon {
+                    font-size: 3rem;
+                    margin-bottom: 1rem;
+                }
+
+                .error-title {
+                    font-size: clamp(1.2rem, 3vw, 1.5rem);
+                    margin-bottom: 0.75rem;
+                    color: #ff6b6b;
+                }
+
+                .not-found-title {
+                    font-size: clamp(1.2rem, 3vw, 1.5rem);
+                    margin-bottom: 0.75rem;
+                    color: #fff;
+                }
+
+                .error-message {
+                    color: #ccc;
+                    font-size: clamp(0.9rem, 2vw, 1rem);
+                    margin: 0;
+                }
+
+                /* Mobile Responsive */
+                @media (max-width: 968px) {
+                    .product-content {
+                        grid-template-columns: 1fr;
+                        gap: 1.5rem;
+                    }
+
+                    .product-image-section {
+                        order: 1;
+                    }
+
+                    .product-info-section {
+                        order: 2;
+                    }
+
+                    .image-container {
+                        min-height: 250px;
+                    }
+
+                    .product-rating {
+                        flex-direction: column;
+                        align-items: flex-start;
+                        gap: 0.5rem;
+                    }
+                }
+
+                @media (max-width: 768px) {
+                    .product-detail-card {
+                        margin: 0.5rem;
+                        padding: 1rem;
+                        border-radius: 12px;
+                    }
+
+                    .image-container {
+                        min-height: 200px;
+                        padding: 1rem;
+                    }
+
+                    .out-of-stock-badge {
+                        top: 0.5rem;
+                        right: 0.5rem;
+                        padding: 0.4rem 0.6rem;
+                        font-size: 0.75rem;
+                    }
+
+                    .stock-header {
+                        flex-wrap: wrap;
+                        gap: 0.5rem;
+                    }
+                }
+
+                @media (max-width: 480px) {
+                    .product-content {
+                        gap: 1rem;
+                    }
+
+                    .product-info-section {
+                        gap: 1rem;
+                    }
+
+                    .category-badge {
+                        padding: 0.4rem 0.6rem;
+                        font-size: 0.8rem;
+                    }
+
+                    .product-description {
+                        padding: 0.75rem;
+                    }
+
+                    .product-rating {
+                        padding: 0.75rem;
+                    }
+
+                    .stock-status {
+                        padding: 0.75rem;
+                    }
+                }
+
+                /* High DPI adjustments */
+                @media (min-resolution: 150dpi) {
+                    .product-detail-card {
+                        padding: 2.5rem;
+                    }
+                    
+                    .image-container {
+                        padding: 2rem;
+                        min-height: 350px;
+                    }
+                    
+                    .add-to-cart-btn {
+                        padding: 1.2rem;
+                    }
+                }
+
+                /* Dark mode enhancements */
+                @media (prefers-color-scheme: dark) {
+                    .product-detail-card {
+                        background: rgba(255,255,255,0.03);
+                    }
+                    
+                    .image-container {
+                        background: rgba(255,255,255,0.03);
+                    }
+                }
+            `}</style>
         </div>
     );
 };

@@ -1,6 +1,6 @@
 // src/types.ts
 
-// Kullanıcı profili tipi (mevcut şemanıza uyarlanmış + gelecekteki özellikler)
+// Kullanıcı profili tipi
 export interface Profile {
     id: string; // UUID
     email: string;
@@ -11,7 +11,7 @@ export interface Profile {
     updated_at?: string;
 }
 
-// Güncellenmiş Product tipi (mevcut veritabanı şemanıza göre)
+// Product tipi
 export interface Product {
     id: number;
     title: string;

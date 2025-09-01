@@ -36,6 +36,13 @@ const AddProductForm: React.FC = () => {
         }
     };
 
+    const clearForm = () => {
+        setTitle(''); setDescription(''); setPrice(''); setImage(''); 
+        setCategory(''); setSku(''); setRating(''); setRatingCount('');
+        setIsActive(true); setInitialStock('0'); setMinStockLevel('5');
+        setMaxStockLevel('100'); setCostPrice('');
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
@@ -101,7 +108,7 @@ const AddProductForm: React.FC = () => {
                     console.warn('Inventory kaydı oluşturulamadı:', inventoryError.message);
                 }
 
-                // İlk stok girişi için stok hareketi kaydet (eğer 0'dan fazla stok eklendiyse)
+                // İlk stok girişi için stok hareketi kaydet
                 if (parseInt(initialStock) > 0) {
                     const { error: stockMovementError } = await supabase
                         .from('stock_movements')
@@ -121,21 +128,7 @@ const AddProductForm: React.FC = () => {
             }
 
             dispatch(setNotification({ message: 'Ürün ve stok bilgileri başarıyla eklendi!', type: 'success' }));
-            
-            // Formu temizle
-            setTitle('');
-            setDescription('');
-            setPrice('');
-            setImage('');
-            setCategory('');
-            setRating('');
-            setRatingCount('');
-            setSku('');
-            setIsActive(true);
-            setInitialStock('0');
-            setMinStockLevel('5');
-            setMaxStockLevel('100');
-            setCostPrice('');
+            clearForm();
 
         } catch (error: any) {
             dispatch(setNotification({ message: 'Ürün eklenirken bir hata oluştu: ' + error.message, type: 'error' }));
@@ -145,236 +138,491 @@ const AddProductForm: React.FC = () => {
     };
 
     return (
-        <div className="card my-4">
-            <div className="card-header">
-                <h3>Yeni Ürün Ekle</h3>
+        <div className="add-product-form">
+            <div className="form-header">
+                <h3 className="form-title">Yeni Ürün Ekle</h3>
             </div>
-            <div className="card-body">
-                <form onSubmit={handleSubmit}>
-                    <div className="row">
-                        {/* Sol Kolon - Temel Ürün Bilgileri */}
-                        <div className="col-md-6">
-                            <h5 className="mb-3 text-info">Temel Ürün Bilgileri</h5>
-                            
-                            <div className="mb-3">
-                                <label htmlFor="title" className="form-label">Ürün Adı *</label>
-                                <input 
-                                    type="text" 
-                                    className="form-control" 
-                                    id="title" 
-                                    value={title} 
-                                    onChange={(e) => setTitle(e.target.value)} 
-                                    required 
-                                />
-                            </div>
-
-                            <div className="mb-3">
-                                <label htmlFor="description" className="form-label">Açıklama *</label>
-                                <textarea 
-                                    className="form-control" 
-                                    id="description" 
-                                    rows={4}
-                                    value={description} 
-                                    onChange={(e) => setDescription(e.target.value)} 
-                                    required
-                                />
-                            </div>
-
-                            <div className="mb-3">
-                                <label htmlFor="price" className="form-label">Fiyat (TL) *</label>
-                                <input 
-                                    type="number" 
-                                    step="0.01"
-                                    className="form-control" 
-                                    id="price" 
-                                    value={price} 
-                                    onChange={(e) => setPrice(e.target.value)} 
-                                    required 
-                                />
-                            </div>
-
-                            <div className="mb-3">
-                                <label htmlFor="image" className="form-label">Resim URL *</label>
-                                <input 
-                                    type="url" 
-                                    className="form-control" 
-                                    id="image" 
-                                    value={image} 
-                                    onChange={(e) => setImage(e.target.value)} 
-                                    required 
-                                />
-                                {image && (
-                                    <div className="mt-2">
-                                        <img 
-                                            src={image} 
-                                            alt="Önizleme" 
-                                            style={{ maxWidth: '200px', maxHeight: '150px', objectFit: 'contain' }}
-                                            className="img-thumbnail"
-                                        />
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="mb-3">
-                                <label htmlFor="category" className="form-label">Kategori *</label>
-                                <input 
-                                    type="text" 
-                                    className="form-control" 
-                                    id="category" 
-                                    value={category} 
-                                    onChange={(e) => setCategory(e.target.value)} 
-                                    required 
-                                />
-                            </div>
+            
+            <form onSubmit={handleSubmit} className="product-form">
+                <div className="form-grid">
+                    {/* Sol Kolon - Temel Ürün Bilgileri */}
+                    <div className="form-section">
+                        <h5 className="section-title basic-info">Temel Ürün Bilgileri</h5>
+                        
+                        <div className="form-group">
+                            <label className="form-label">Ürün Adı *</label>
+                            <input 
+                                type="text" 
+                                className="form-input" 
+                                value={title} 
+                                onChange={(e) => setTitle(e.target.value)} 
+                                required 
+                                placeholder="Ürün adını girin"
+                            />
                         </div>
 
-                        {/* Sağ Kolon - SKU, Stok ve Ek Bilgiler */}
-                        <div className="col-md-6">
-                            <h5 className="mb-3 text-warning">SKU ve Stok Bilgileri</h5>
-                            
-                            <div className="mb-3">
-                                <label htmlFor="sku" className="form-label">SKU (Stok Kodu)</label>
-                                <div className="input-group">
-                                    <input 
-                                        type="text" 
-                                        className="form-control" 
-                                        id="sku" 
-                                        value={sku} 
-                                        onChange={(e) => setSku(e.target.value.toUpperCase())} 
-                                        placeholder="Otomatik oluşturulacak"
-                                    />
-                                    <button 
-                                        type="button" 
-                                        className="btn btn-outline-info" 
-                                        onClick={generateSku}
-                                        disabled={!category || !title}
-                                    >
-                                        Oluştur
-                                    </button>
-                                </div>
-                                <small className="form-text text-muted">
-                                    Kategori ve ürün adından otomatik oluşturulabilir
-                                </small>
-                            </div>
+                        <div className="form-group">
+                            <label className="form-label">Açıklama *</label>
+                            <textarea 
+                                className="form-textarea" 
+                                rows={4}
+                                value={description} 
+                                onChange={(e) => setDescription(e.target.value)} 
+                                required
+                                placeholder="Ürün açıklamasını girin"
+                            />
+                        </div>
 
-                            <div className="row">
-                                <div className="col-md-4">
-                                    <label htmlFor="initialStock" className="form-label">Başlangıç Stoku</label>
-                                    <input 
-                                        type="number" 
-                                        className="form-control" 
-                                        id="initialStock" 
-                                        value={initialStock} 
-                                        onChange={(e) => setInitialStock(e.target.value)} 
-                                        min="0"
-                                    />
-                                </div>
-                                <div className="col-md-4">
-                                    <label htmlFor="minStockLevel" className="form-label">Min. Stok</label>
-                                    <input 
-                                        type="number" 
-                                        className="form-control" 
-                                        id="minStockLevel" 
-                                        value={minStockLevel} 
-                                        onChange={(e) => setMinStockLevel(e.target.value)} 
-                                        min="0"
-                                    />
-                                </div>
-                                <div className="col-md-4">
-                                    <label htmlFor="maxStockLevel" className="form-label">Max. Stok</label>
-                                    <input 
-                                        type="number" 
-                                        className="form-control" 
-                                        id="maxStockLevel" 
-                                        value={maxStockLevel} 
-                                        onChange={(e) => setMaxStockLevel(e.target.value)} 
-                                        min="1"
-                                    />
-                                </div>
-                            </div>
+                        <div className="form-group">
+                            <label className="form-label">Fiyat (TL) *</label>
+                            <input 
+                                type="number" 
+                                step="0.01"
+                                className="form-input" 
+                                value={price} 
+                                onChange={(e) => setPrice(e.target.value)} 
+                                required 
+                                placeholder="0.00"
+                            />
+                        </div>
 
-                            <div className="mb-3 mt-3">
-                                <label htmlFor="costPrice" className="form-label">Maliyet Fiyatı (TL)</label>
-                                <input 
-                                    type="number" 
-                                    step="0.01"
-                                    className="form-control" 
-                                    id="costPrice" 
-                                    value={costPrice} 
-                                    onChange={(e) => setCostPrice(e.target.value)} 
-                                    placeholder="Opsiyonel"
-                                />
-                            </div>
+                        <div className="form-group">
+                            <label className="form-label">Resim URL *</label>
+                            <input 
+                                type="url" 
+                                className="form-input" 
+                                value={image} 
+                                onChange={(e) => setImage(e.target.value)} 
+                                required 
+                                placeholder="https://example.com/image.jpg"
+                            />
+                            {image && (
+                                <div className="image-preview">
+                                    <img src={image} alt="Önizleme" />
+                                </div>
+                            )}
+                        </div>
 
-                            <h5 className="mb-3 text-success">Ek Bilgiler</h5>
-                            
-                            <div className="row">
-                                <div className="col-md-6">
-                                    <label htmlFor="rating" className="form-label">Puan (0-5)</label>
-                                    <input 
-                                        type="number" 
-                                        step="0.1" 
-                                        min="0"
-                                        max="5"
-                                        className="form-control" 
-                                        id="rating" 
-                                        value={rating} 
-                                        onChange={(e) => setRating(e.target.value)} 
-                                        placeholder="4.5"
-                                    />
-                                </div>
-                                <div className="col-md-6">
-                                    <label htmlFor="ratingCount" className="form-label">Değerlendirme Sayısı</label>
-                                    <input 
-                                        type="number" 
-                                        min="0"
-                                        className="form-control" 
-                                        id="ratingCount" 
-                                        value={ratingCount} 
-                                        onChange={(e) => setRatingCount(e.target.value)} 
-                                        placeholder="125"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="mb-3 mt-3">
-                                <div className="form-check">
-                                    <input 
-                                        className="form-check-input" 
-                                        type="checkbox" 
-                                        id="isActive"
-                                        checked={isActive}
-                                        onChange={(e) => setIsActive(e.target.checked)}
-                                    />
-                                    <label className="form-check-label" htmlFor="isActive">
-                                        Ürün aktif (satışta)
-                                    </label>
-                                </div>
-                            </div>
+                        <div className="form-group">
+                            <label className="form-label">Kategori *</label>
+                            <input 
+                                type="text" 
+                                className="form-input" 
+                                value={category} 
+                                onChange={(e) => setCategory(e.target.value)} 
+                                required 
+                                placeholder="Kategori adı"
+                            />
                         </div>
                     </div>
 
-                    <hr />
+                    {/* Sağ Kolon - SKU, Stok ve Ek Bilgiler */}
+                    <div className="form-section">
+                        <h5 className="section-title stock-info">SKU ve Stok Bilgileri</h5>
+                        
+                        <div className="form-group">
+                            <label className="form-label">SKU (Stok Kodu)</label>
+                            <div className="sku-input-group">
+                                <input 
+                                    type="text" 
+                                    className="form-input" 
+                                    value={sku} 
+                                    onChange={(e) => setSku(e.target.value.toUpperCase())} 
+                                    placeholder="Otomatik oluşturulacak"
+                                />
+                                <button 
+                                    type="button" 
+                                    className="generate-sku-btn"
+                                    onClick={generateSku}
+                                    disabled={!category || !title}
+                                >
+                                    Oluştur
+                                </button>
+                            </div>
+                            <small className="form-help">Kategori ve ürün adından otomatik oluşturulabilir</small>
+                        </div>
+
+                        <div className="stock-inputs">
+                            <div className="form-group">
+                                <label className="form-label">Başlangıç Stoku</label>
+                                <input 
+                                    type="number" 
+                                    className="form-input" 
+                                    value={initialStock} 
+                                    onChange={(e) => setInitialStock(e.target.value)} 
+                                    min="0"
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Min. Stok</label>
+                                <input 
+                                    type="number" 
+                                    className="form-input" 
+                                    value={minStockLevel} 
+                                    onChange={(e) => setMinStockLevel(e.target.value)} 
+                                    min="0"
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Max. Stok</label>
+                                <input 
+                                    type="number" 
+                                    className="form-input" 
+                                    value={maxStockLevel} 
+                                    onChange={(e) => setMaxStockLevel(e.target.value)} 
+                                    min="1"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="form-group">
+                            <label className="form-label">Maliyet Fiyatı (TL)</label>
+                            <input 
+                                type="number" 
+                                step="0.01"
+                                className="form-input" 
+                                value={costPrice} 
+                                onChange={(e) => setCostPrice(e.target.value)} 
+                                placeholder="Opsiyonel"
+                            />
+                        </div>
+
+                        <h5 className="section-title additional-info">Ek Bilgiler</h5>
+                        
+                        <div className="rating-inputs">
+                            <div className="form-group">
+                                <label className="form-label">Puan (0-5)</label>
+                                <input 
+                                    type="number" 
+                                    step="0.1" 
+                                    min="0"
+                                    max="5"
+                                    className="form-input" 
+                                    value={rating} 
+                                    onChange={(e) => setRating(e.target.value)} 
+                                    placeholder="4.5"
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Değerlendirme Sayısı</label>
+                                <input 
+                                    type="number" 
+                                    min="0"
+                                    className="form-input" 
+                                    value={ratingCount} 
+                                    onChange={(e) => setRatingCount(e.target.value)} 
+                                    placeholder="125"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="form-group">
+                            <div className="checkbox-group">
+                                <input 
+                                    type="checkbox" 
+                                    id="isActive"
+                                    checked={isActive}
+                                    onChange={(e) => setIsActive(e.target.checked)}
+                                />
+                                <label htmlFor="isActive">Ürün aktif (satışta)</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="form-actions">
+                    <button type="button" className="clear-btn" onClick={clearForm}>
+                        Temizle
+                    </button>
+                    <button type="submit" className="submit-btn" disabled={loading}>
+                        {loading ? 'Ekleniyor...' : 'Ürünü Ekle'}
+                    </button>
+                </div>
+            </form>
+
+            <style>{`
+                .add-product-form {
+                    width: 100%;
+                }
+
+                .form-header {
+                    margin-bottom: 2rem;
+                }
+
+                .form-title {
+                    color: #fff;
+                    font-size: clamp(1.2rem, 3vw, 1.5rem);
+                    font-weight: 700;
+                    margin: 0;
+                    text-align: center;
+                }
+
+                .product-form {
+                    width: 100%;
+                }
+
+                .form-grid {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 2rem;
+                    margin-bottom: 2rem;
+                }
+
+                .form-section {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1rem;
+                }
+
+                .section-title {
+                    font-size: 1.1rem;
+                    font-weight: 600;
+                    margin: 0 0 0.5rem 0;
+                    padding-bottom: 0.5rem;
+                    border-bottom: 2px solid;
+                }
+
+                .section-title.basic-info {
+                    color: #17a2b8;
+                    border-color: #17a2b8;
+                }
+
+                .section-title.stock-info {
+                    color: #ffc107;
+                    border-color: #ffc107;
+                }
+
+                .section-title.additional-info {
+                    color: #28a745;
+                    border-color: #28a745;
+                }
+
+                .form-group {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.5rem;
+                }
+
+                .form-label {
+                    color: #e0e0e0;
+                    font-size: 0.9rem;
+                    font-weight: 500;
+                }
+
+                .form-input,
+                .form-textarea {
+                    padding: 0.75rem;
+                    background: rgba(255,255,255,0.1);
+                    border: 2px solid rgba(255,255,255,0.2);
+                    border-radius: 8px;
+                    color: #fff;
+                    font-size: 0.9rem;
+                    transition: all 0.3s ease;
+                    backdrop-filter: blur(10px);
+                }
+
+                .form-input:focus,
+                .form-textarea:focus {
+                    outline: none;
+                    border-color: #007bff;
+                    box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
+                }
+
+                .form-input::placeholder,
+                .form-textarea::placeholder {
+                    color: rgba(255,255,255,0.5);
+                }
+
+                .form-textarea {
+                    resize: vertical;
+                    min-height: 100px;
+                }
+
+                .sku-input-group {
+                    display: flex;
+                    gap: 0.5rem;
+                }
+
+                .generate-sku-btn {
+                    padding: 0.75rem 1rem;
+                    background: rgba(23,162,184,0.8);
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-size: 0.85rem;
+                    font-weight: 500;
+                    transition: all 0.3s ease;
+                    white-space: nowrap;
+                }
+
+                .generate-sku-btn:hover:not(:disabled) {
+                    background: rgba(23,162,184,1);
+                    transform: translateY(-1px);
+                }
+
+                .generate-sku-btn:disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
+                }
+
+                .form-help {
+                    color: #999;
+                    font-size: 0.8rem;
+                }
+
+                .stock-inputs,
+                .rating-inputs {
+                    display: grid;
+                    grid-template-columns: repeat(3, 1fr);
+                    gap: 1rem;
+                }
+
+                .image-preview {
+                    margin-top: 0.5rem;
+                    display: flex;
+                    justify-content: center;
+                }
+
+                .image-preview img {
+                    max-width: 200px;
+                    max-height: 150px;
+                    object-fit: contain;
+                    border-radius: 8px;
+                    border: 2px solid rgba(255,255,255,0.2);
+                }
+
+                .checkbox-group {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    margin-top: 0.5rem;
+                }
+
+                .checkbox-group input[type="checkbox"] {
+                    width: 18px;
+                    height: 18px;
+                    accent-color: #007bff;
+                }
+
+                .checkbox-group label {
+                    color: #e0e0e0;
+                    font-size: 0.9rem;
+                    cursor: pointer;
+                }
+
+                .form-actions {
+                    display: flex;
+                    gap: 1rem;
+                    justify-content: flex-end;
+                    padding-top: 1rem;
+                    border-top: 1px solid rgba(255,255,255,0.1);
+                }
+
+                .clear-btn,
+                .submit-btn {
+                    padding: 0.75rem 1.5rem;
+                    border: none;
+                    border-radius: 8px;
+                    font-size: 0.9rem;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    min-width: 120px;
+                }
+
+                .clear-btn {
+                    background: rgba(108,117,125,0.8);
+                    color: white;
+                }
+
+                .clear-btn:hover {
+                    background: rgba(108,117,125,1);
+                    transform: translateY(-1px);
+                }
+
+                .submit-btn {
+                    background: linear-gradient(45deg, #28a745, #20c997);
+                    color: white;
+                }
+
+                .submit-btn:hover:not(:disabled) {
+                    transform: translateY(-2px);
+                    box-shadow: 0 5px 15px rgba(40,167,69,0.3);
+                }
+
+                .submit-btn:disabled {
+                    opacity: 0.6;
+                    cursor: not-allowed;
+                    transform: none;
+                }
+
+                /* Mobile Responsive */
+                @media (max-width: 768px) {
+                    .form-grid {
+                        grid-template-columns: 1fr;
+                        gap: 1.5rem;
+                    }
+
+                    .stock-inputs,
+                    .rating-inputs {
+                        grid-template-columns: 1fr;
+                        gap: 0.75rem;
+                    }
+
+                    .sku-input-group {
+                        flex-direction: column;
+                    }
+
+                    .generate-sku-btn {
+                        align-self: flex-start;
+                    }
+
+                    .form-actions {
+                        flex-direction: column;
+                        align-items: stretch;
+                    }
+
+                    .clear-btn,
+                    .submit-btn {
+                        min-width: auto;
+                    }
+                }
+
+                @media (max-width: 480px) {
+                    .form-grid {
+                        gap: 1rem;
+                    }
+
+                    .form-input,
+                    .form-textarea {
+                        padding: 0.6rem;
+                        font-size: 0.85rem;
+                    }
+
+                    .generate-sku-btn {
+                        padding: 0.6rem 0.8rem;
+                        font-size: 0.8rem;
+                    }
+
+                    .image-preview img {
+                        max-width: 150px;
+                        max-height: 100px;
+                    }
+                }
+
+                /* High DPI adjustments */
+                @media (min-resolution: 150dpi) {
+                    .form-input,
+                    .form-textarea {
+                        padding: 0.8rem;
+                    }
                     
-                    <div className="d-flex gap-2 justify-content-end">
-                        <button 
-                            type="button" 
-                            className="btn btn-secondary"
-                            onClick={() => {
-                                setTitle(''); setDescription(''); setPrice(''); setImage(''); 
-                                setCategory(''); setSku(''); setRating(''); setRatingCount('');
-                                setIsActive(true); setInitialStock('0'); setMinStockLevel('5');
-                                setMaxStockLevel('100'); setCostPrice('');
-                            }}
-                        >
-                            Temizle
-                        </button>
-                        <button type="submit" className="btn btn-success" disabled={loading}>
-                            {loading ? 'Ekleniyor...' : 'Ürünü Ekle'}
-                        </button>
-                    </div>
-                </form>
-            </div>
+                    .generate-sku-btn {
+                        padding: 0.8rem 1.2rem;
+                    }
+                }
+            `}</style>
         </div>
     );
 };
