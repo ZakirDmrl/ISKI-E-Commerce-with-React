@@ -14,6 +14,7 @@ const ProfilePage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [updating, setUpdating] = useState(false);
     const [editMode, setEditMode] = useState(false);
+    const [uploadingAvatar, setUploadingAvatar] = useState(false);
     
     // Form states
     const [fullName, setFullName] = useState('');
@@ -43,7 +44,7 @@ const ProfilePage: React.FC = () => {
             setFullName(data.full_name || '');
             setUsername(data.username || '');
             setAvatarPreview(data.avatar_url || null);
-        } catch (error: any) {
+        } catch (error) {
             console.error('Profile load error:', error);
             dispatch(setNotification({
                 message: 'Profil bilgileri yüklenirken hata oluştu.',
@@ -58,6 +59,26 @@ const ProfilePage: React.FC = () => {
     const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
+            // File size validation (max 5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                dispatch(setNotification({
+                    message: 'Dosya boyutu çok büyük. Maksimum 5MB olmalıdır.',
+                    type: 'error'
+                }));
+                setTimeout(() => dispatch(clearNotification()), 3000);
+                return;
+            }
+
+            // File type validation
+            if (!file.type.startsWith('image/')) {
+                dispatch(setNotification({
+                    message: 'Lütfen geçerli bir resim dosyası seçin.',
+                    type: 'error'
+                }));
+                setTimeout(() => dispatch(clearNotification()), 3000);
+                return;
+            }
+
             setAvatarFile(file);
             const reader = new FileReader();
             reader.onload = (e) => {
@@ -69,13 +90,28 @@ const ProfilePage: React.FC = () => {
 
     const uploadAvatar = async (file: File): Promise<string | null> => {
         try {
+            setUploadingAvatar(true);
+            
+            // Delete old avatar if exists
+            if (profile?.avatar_url) {
+                const oldPath = profile.avatar_url.split('/').pop();
+                if (oldPath && oldPath !== 'default-avatar.png') {
+                    await supabase.storage
+                        .from('avatars')
+                        .remove([`${user?.id}/${oldPath}`]);
+                }
+            }
+
             const fileExt = file.name.split('.').pop();
-            const fileName = `${user?.id}-${Date.now()}.${fileExt}`;
-            const filePath = `avatars/${fileName}`;
+            const fileName = `avatar-${Date.now()}.${fileExt}`;
+            const filePath = `${user?.id}/${fileName}`;
 
             const { error: uploadError } = await supabase.storage
                 .from('avatars')
-                .upload(filePath, file);
+                .upload(filePath, file, {
+                    cacheControl: '3600',
+                    upsert: false
+                });
 
             if (uploadError) throw uploadError;
 
@@ -84,9 +120,16 @@ const ProfilePage: React.FC = () => {
                 .getPublicUrl(filePath);
 
             return publicUrl;
-        } catch (error: any) {
+        } catch (error) {
             console.error('Avatar upload error:', error);
+            dispatch(setNotification({
+                message: 'Avatar yüklenirken hata oluştu: ' + error.message,
+                type: 'error'
+            }));
+            setTimeout(() => dispatch(clearNotification()), 3000);
             return null;
+        } finally {
+            setUploadingAvatar(false);
         }
     };
 
@@ -104,7 +147,26 @@ const ProfilePage: React.FC = () => {
                 if (uploadedUrl) {
                     avatarUrl = uploadedUrl;
                 } else {
-                    throw new Error('Avatar yüklenirken hata oluştu');
+                    return; // Upload failed, error already shown
+                }
+            }
+
+            // Check username uniqueness if changed
+            if (username && username !== profile?.username) {
+                const { data: existingUser } = await supabase
+                    .from('profiles')
+                    .select('id')
+                    .eq('username', username)
+                    .neq('id', user.id)
+                    .single();
+
+                if (existingUser) {
+                    dispatch(setNotification({
+                        message: 'Bu kullanıcı adı zaten kullanımda.',
+                        type: 'error'
+                    }));
+                    setTimeout(() => dispatch(clearNotification()), 3000);
+                    return;
                 }
             }
 
@@ -129,7 +191,7 @@ const ProfilePage: React.FC = () => {
             setAvatarFile(null);
             await loadProfile(); // Reload profile data
             
-        } catch (error: any) {
+        } catch (error) {
             console.error('Profile update error:', error);
             dispatch(setNotification({
                 message: `Profil güncellenirken hata oluştu: ${error.message}`,
@@ -149,190 +211,163 @@ const ProfilePage: React.FC = () => {
         setAvatarPreview(profile?.avatar_url || null);
     };
 
+    const generateDefaultAvatar = (email: string, size: number) => {
+        const colors = [
+            '#667eea', '#764ba2', '#f093fb', '#f5576c',
+            '#4facfe', '#00f2fe', '#43e97b', '#38f9d7',
+            '#ffecd2', '#fcb69f', '#a8edea', '#fed6e3'
+        ];
+        
+        const initial = email?.charAt(0).toUpperCase() || '?';
+        const backgroundColor = colors[email?.length % colors.length || 0];
+        
+        return (
+            <div 
+                className="default-avatar"
+                style={{
+                    width: size,
+                    height: size,
+                    backgroundColor,
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'white',
+                    fontSize: `${size * 0.4}px`,
+                    fontWeight: '700',
+                    border: '4px solid rgba(255,255,255,0.2)',
+                    boxShadow: '0 10px 30px rgba(0,0,0,0.3)'
+                }}
+            >
+                {initial}
+            </div>
+        );
+    };
+
     if (loading) {
         return (
-            <div style={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                minHeight: '60vh',
-                flexDirection: 'column',
-                gap: '20px'
-            }}>
-                <div style={{
-                    width: '50px',
-                    height: '50px',
-                    border: '4px solid #333',
-                    borderTop: '4px solid #007bff',
-                    borderRadius: '50%',
-                    animation: 'spin 1s linear infinite'
-                }}></div>
-                <p style={{ color: '#fff', fontSize: '1.2rem' }}>Profil yükleniyor...</p>
+            <div className="loading-container">
+                <div className="loading-content">
+                    <div className="loading-spinner"></div>
+                    <p>Profil yükleniyor...</p>
+                </div>
+                <style>{`
+                    .loading-container {
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        min-height: 60vh;
+                        flex-direction: column;
+                        gap: 20px;
+                    }
+                    .loading-content {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 20px;
+                    }
+                    .loading-spinner {
+                        width: 50px;
+                        height: 50px;
+                        border: 4px solid #333;
+                        border-top: 4px solid #007bff;
+                        border-radius: 50%;
+                        animation: spin 1s linear infinite;
+                    }
+                    .loading-content p {
+                        color: #fff;
+                        font-size: 1.2rem;
+                        margin: 0;
+                    }
+                `}</style>
             </div>
         );
     }
 
     return (
-        <div style={{
-            width: '100%',
-            padding: '0'
-        }}>
+        <div className="profile-page">
             {/* Header */}
-            <div style={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                borderRadius: '16px',
-                padding: '30px',
-                marginBottom: '25px',
-                textAlign: 'center',
-                boxShadow: '0 20px 40px rgba(0,0,0,0.3)'
-            }}>
-                <h1 style={{
-                    fontSize: '2rem',
-                    fontWeight: '700',
-                    margin: '0',
-                    background: 'linear-gradient(45deg, #fff, #e0e0e0)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text'
-                }}>
-                    Profil Ayarları
-                </h1>
-                <p style={{
-                    fontSize: '1rem',
-                    opacity: 0.9,
-                    margin: '8px 0 0 0',
-                    color: '#fff'
-                }}>
+            <div className="profile-header">
+                <h1 className="header-title">Profil Ayarları</h1>
+                <p className="header-subtitle">
                     Hesap bilgilerinizi düzenleyebilirsiniz
                 </p>
             </div>
 
             {/* Profile Card */}
-            <div style={{
-                background: 'rgba(255,255,255,0.05)',
-                backdropFilter: 'blur(10px)',
-                borderRadius: '16px',
-                padding: '30px',
-                border: '1px solid rgba(255,255,255,0.1)',
-                boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
-            }}>
+            <div className="profile-card">
                 {/* Avatar Section */}
-                <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    marginBottom: '25px'
-                }}>
-                    <div style={{
-                        position: 'relative',
-                        marginBottom: '15px'
-                    }}>
-                        <div style={{
-                            width: '120px',
-                            height: '120px',
-                            borderRadius: '50%',
-                            background: avatarPreview 
-                                ? `url(${avatarPreview}) center/cover`
-                                : 'linear-gradient(45deg, #667eea, #764ba2)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'white',
-                            fontSize: '2.5rem',
-                            fontWeight: 'bold',
-                            border: '4px solid rgba(255,255,255,0.2)',
-                            boxShadow: '0 10px 30px rgba(0,0,0,0.3)'
-                        }}>
-                            {!avatarPreview && (user?.email?.charAt(0).toUpperCase() || '?')}
-                        </div>
+                <div className="avatar-section">
+                    <div className="avatar-container">
+                        {avatarPreview ? (
+                            <img 
+                                src={avatarPreview} 
+                                alt="Profile Avatar"
+                                className="avatar-image"
+                            />
+                        ) : (
+                            generateDefaultAvatar(user?.email || '', 120)
+                        )}
                         
                         {editMode && (
-                            <label style={{
-                                position: 'absolute',
-                                bottom: '10px',
-                                right: '10px',
-                                background: '#007bff',
-                                color: 'white',
-                                borderRadius: '50%',
-                                width: '40px',
-                                height: '40px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: 'pointer',
-                                boxShadow: '0 4px 15px rgba(0,123,255,0.4)',
-                                transition: 'all 0.3s ease'
-                            }}>
-                                📷
+                            <label className="avatar-upload-btn">
+                                {uploadingAvatar ? (
+                                    <div className="upload-spinner"></div>
+                                ) : (
+                                    <span>📷</span>
+                                )}
                                 <input
                                     type="file"
                                     accept="image/*"
                                     onChange={handleAvatarChange}
                                     style={{ display: 'none' }}
+                                    disabled={uploadingAvatar}
                                 />
                             </label>
+                        )}
+                        
+                        {uploadingAvatar && (
+                            <div className="upload-overlay">
+                                <div className="upload-progress">Yükleniyor...</div>
+                            </div>
                         )}
                     </div>
 
                     {avatarFile && (
-                        <p style={{
-                            color: '#4CAF50',
-                            fontSize: '0.9rem',
-                            margin: 0
-                        }}>
-                            Yeni avatar seçildi: {avatarFile.name}
-                        </p>
+                        <div className="file-selected">
+                            ✅ Yeni avatar seçildi: {avatarFile.name}
+                        </div>
+                    )}
+                    
+                    {editMode && !uploadingAvatar && (
+                        <div className="avatar-help">
+                            📷 Profil resminizi değiştirmek için tıklayın (Max: 5MB)
+                        </div>
                     )}
                 </div>
 
-                {/* Profile Information */}
-                <div style={{
-                    display: 'grid',
-                    gap: '20px',
-                    marginBottom: '25px'
-                }}>
+                {/* Profile Form */}
+                <div className="profile-form">
                     {/* Email (Read-only) */}
-                    <div>
-                        <label style={{
-                            display: 'block',
-                            color: '#fff',
-                            fontSize: '1rem',
-                            fontWeight: '600',
-                            marginBottom: '8px'
-                        }}>
-                            E-posta
+                    <div className="form-group">
+                        <label className="form-label">
+                            📧 E-posta
                         </label>
                         <input
                             type="email"
                             value={user?.email || ''}
                             disabled
-                            style={{
-                                width: '100%',
-                                padding: '15px 20px',
-                                fontSize: '1rem',
-                                borderRadius: '12px',
-                                border: '2px solid rgba(255,255,255,0.1)',
-                                backgroundColor: 'rgba(255,255,255,0.05)',
-                                color: '#ccc',
-                                outline: 'none',
-                                cursor: 'not-allowed'
-                            }}
+                            className="form-input disabled"
                         />
-                        <small style={{ color: '#888', fontSize: '0.85rem' }}>
+                        <small className="form-help">
                             E-posta adresi değiştirilemez
                         </small>
                     </div>
 
                     {/* Full Name */}
-                    <div>
-                        <label style={{
-                            display: 'block',
-                            color: '#fff',
-                            fontSize: '1rem',
-                            fontWeight: '600',
-                            marginBottom: '8px'
-                        }}>
-                            Ad Soyad
+                    <div className="form-group">
+                        <label className="form-label">
+                            👤 Ad Soyad
                         </label>
                         <input
                             type="text"
@@ -340,31 +375,14 @@ const ProfilePage: React.FC = () => {
                             onChange={(e) => setFullName(e.target.value)}
                             disabled={!editMode}
                             placeholder="Ad ve soyadınızı girin"
-                            style={{
-                                width: '100%',
-                                padding: '15px 20px',
-                                fontSize: '1rem',
-                                borderRadius: '12px',
-                                border: `2px solid ${editMode ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)'}`,
-                                backgroundColor: editMode ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)',
-                                color: '#fff',
-                                outline: 'none',
-                                transition: 'all 0.3s ease',
-                                cursor: editMode ? 'text' : 'not-allowed'
-                            }}
+                            className={`form-input ${editMode ? 'editable' : 'disabled'}`}
                         />
                     </div>
 
                     {/* Username */}
-                    <div>
-                        <label style={{
-                            display: 'block',
-                            color: '#fff',
-                            fontSize: '1rem',
-                            fontWeight: '600',
-                            marginBottom: '8px'
-                        }}>
-                            Kullanıcı Adı
+                    <div className="form-group">
+                        <label className="form-label">
+                            🏷️ Kullanıcı Adı
                         </label>
                         <input
                             type="text"
@@ -372,48 +390,20 @@ const ProfilePage: React.FC = () => {
                             onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
                             disabled={!editMode}
                             placeholder="Kullanıcı adınızı girin"
-                            style={{
-                                width: '100%',
-                                padding: '15px 20px',
-                                fontSize: '1rem',
-                                borderRadius: '12px',
-                                border: `2px solid ${editMode ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)'}`,
-                                backgroundColor: editMode ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)',
-                                color: '#fff',
-                                outline: 'none',
-                                transition: 'all 0.3s ease',
-                                cursor: editMode ? 'text' : 'not-allowed'
-                            }}
+                            className={`form-input ${editMode ? 'editable' : 'disabled'}`}
                         />
-                        <small style={{ color: '#888', fontSize: '0.85rem' }}>
+                        <small className="form-help">
                             Sadece küçük harf, rakam ve alt çizgi kullanılabilir
                         </small>
                     </div>
 
                     {/* Account Info */}
-                    <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 1fr',
-                        gap: '20px',
-                        marginTop: '10px'
-                    }}>
-                        <div>
-                            <label style={{
-                                display: 'block',
-                                color: '#fff',
-                                fontSize: '1rem',
-                                fontWeight: '600',
-                                marginBottom: '8px'
-                            }}>
-                                Üyelik Tarihi
+                    <div className="info-grid">
+                        <div className="info-item">
+                            <label className="form-label">
+                                📅 Üyelik Tarihi
                             </label>
-                            <div style={{
-                                padding: '15px 20px',
-                                borderRadius: '12px',
-                                backgroundColor: 'rgba(255,255,255,0.05)',
-                                color: '#ccc',
-                                fontSize: '1rem'
-                            }}>
+                            <div className="info-value">
                                 {profile?.created_at 
                                     ? new Date(profile.created_at).toLocaleDateString('tr-TR')
                                     : 'Bilinmiyor'
@@ -421,23 +411,11 @@ const ProfilePage: React.FC = () => {
                             </div>
                         </div>
 
-                        <div>
-                            <label style={{
-                                display: 'block',
-                                color: '#fff',
-                                fontSize: '1rem',
-                                fontWeight: '600',
-                                marginBottom: '8px'
-                            }}>
-                                Son Güncelleme
+                        <div className="info-item">
+                            <label className="form-label">
+                                🔄 Son Güncelleme
                             </label>
-                            <div style={{
-                                padding: '15px 20px',
-                                borderRadius: '12px',
-                                backgroundColor: 'rgba(255,255,255,0.05)',
-                                color: '#ccc',
-                                fontSize: '1rem'
-                            }}>
+                            <div className="info-value">
                                 {profile?.updated_at 
                                     ? new Date(profile.updated_at).toLocaleDateString('tr-TR')
                                     : 'Hiç'
@@ -448,106 +426,435 @@ const ProfilePage: React.FC = () => {
                 </div>
 
                 {/* Action Buttons */}
-                <div style={{
-                    display: 'flex',
-                    gap: '15px',
-                    justifyContent: 'center',
-                    flexWrap: 'wrap'
-                }}>
+                <div className="action-buttons">
                     {!editMode ? (
                         <button
                             onClick={() => setEditMode(true)}
-                            style={{
-                                padding: '15px 30px',
-                                background: 'linear-gradient(45deg, #667eea, #764ba2)',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '12px',
-                                fontSize: '1rem',
-                                fontWeight: '600',
-                                cursor: 'pointer',
-                                transition: 'all 0.3s ease',
-                                boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)'
-                            }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.transform = 'translateY(-2px)';
-                                e.currentTarget.style.boxShadow = '0 8px 25px rgba(102, 126, 234, 0.6)';
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.transform = 'translateY(0)';
-                                e.currentTarget.style.boxShadow = '0 4px 15px rgba(102, 126, 234, 0.4)';
-                            }}
+                            className="btn-primary"
                         >
-                            Profili Düzenle
+                            ✏️ Profili Düzenle
                         </button>
                     ) : (
                         <>
                             <button
                                 onClick={handleUpdateProfile}
-                                disabled={updating}
-                                style={{
-                                    padding: '15px 30px',
-                                    background: updating 
-                                        ? 'rgba(76, 175, 80, 0.6)' 
-                                        : 'linear-gradient(45deg, #4CAF50, #45a049)',
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '12px',
-                                    fontSize: '1rem',
-                                    fontWeight: '600',
-                                    cursor: updating ? 'not-allowed' : 'pointer',
-                                    transition: 'all 0.3s ease',
-                                    boxShadow: '0 4px 15px rgba(76, 175, 80, 0.4)'
-                                }}
-                                onMouseEnter={(e) => {
-                                    if (!updating) {
-                                        e.currentTarget.style.transform = 'translateY(-2px)';
-                                        e.currentTarget.style.boxShadow = '0 8px 25px rgba(76, 175, 80, 0.6)';
-                                    }
-                                }}
-                                onMouseLeave={(e) => {
-                                    if (!updating) {
-                                        e.currentTarget.style.transform = 'translateY(0)';
-                                        e.currentTarget.style.boxShadow = '0 4px 15px rgba(76, 175, 80, 0.4)';
-                                    }
-                                }}
+                                disabled={updating || uploadingAvatar}
+                                className={`btn-success ${(updating || uploadingAvatar) ? 'loading' : ''}`}
                             >
-                                {updating ? 'Güncelleniyor...' : 'Kaydet'}
+                                {updating ? '⏳ Güncelleniyor...' : '💾 Kaydet'}
                             </button>
 
                             <button
                                 onClick={cancelEdit}
-                                disabled={updating}
-                                style={{
-                                    padding: '15px 30px',
-                                    background: 'rgba(255,255,255,0.1)',
-                                    color: '#fff',
-                                    border: '2px solid rgba(255,255,255,0.2)',
-                                    borderRadius: '12px',
-                                    fontSize: '1rem',
-                                    fontWeight: '600',
-                                    cursor: updating ? 'not-allowed' : 'pointer',
-                                    transition: 'all 0.3s ease'
-                                }}
-                                onMouseEnter={(e) => {
-                                    if (!updating) {
-                                        e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)';
-                                        e.currentTarget.style.transform = 'translateY(-2px)';
-                                    }
-                                }}
-                                onMouseLeave={(e) => {
-                                    if (!updating) {
-                                        e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)';
-                                        e.currentTarget.style.transform = 'translateY(0)';
-                                    }
-                                }}
+                                disabled={updating || uploadingAvatar}
+                                className="btn-cancel"
                             >
-                                İptal
+                                ❌ İptal
                             </button>
                         </>
                     )}
                 </div>
             </div>
+
+            <style>{`
+                .profile-page {
+                    width: 100%;
+                    padding: 0;
+                    min-height: calc(100vh - 120px);
+                }
+
+                .profile-header {
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    border-radius: 16px;
+                    padding: clamp(1.5rem, 4vw, 2rem);
+                    margin: 1rem;
+                    margin-bottom: 2rem;
+                    text-align: center;
+                    box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+                }
+
+                .header-title {
+                    font-size: clamp(1.5rem, 4vw, 2rem);
+                    font-weight: 700;
+                    margin: 0;
+                    background: linear-gradient(45deg, #fff, #e0e0e0);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    background-clip: text;
+                }
+
+                .header-subtitle {
+                    font-size: clamp(0.9rem, 2vw, 1rem);
+                    opacity: 0.9;
+                    margin: 0.5rem 0 0 0;
+                    color: #fff;
+                }
+
+                .profile-card {
+                    background: rgba(255,255,255,0.05);
+                    backdrop-filter: blur(10px);
+                    border-radius: 16px;
+                    padding: clamp(1.5rem, 4vw, 2rem);
+                    margin: 1rem;
+                    border: 1px solid rgba(255,255,255,0.1);
+                    box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+                }
+
+                /* Avatar Section */
+                .avatar-section {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    margin-bottom: 2rem;
+                    gap: 1rem;
+                }
+
+                .avatar-container {
+                    position: relative;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+
+                .avatar-image {
+                    width: 120px;
+                    height: 120px;
+                    border-radius: 50%;
+                    object-fit: cover;
+                    border: 4px solid rgba(255,255,255,0.2);
+                    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+                    transition: all 0.3s ease;
+                }
+
+                .avatar-upload-btn {
+                    position: absolute;
+                    bottom: 5px;
+                    right: 5px;
+                    background: linear-gradient(45deg, #007bff, #0056b3);
+                    color: white;
+                    border-radius: 50%;
+                    width: 40px;
+                    height: 40px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    cursor: pointer;
+                    box-shadow: 0 4px 15px rgba(0,123,255,0.4);
+                    transition: all 0.3s ease;
+                    font-size: 1rem;
+                }
+
+                .avatar-upload-btn:hover {
+                    transform: scale(1.1);
+                    box-shadow: 0 6px 20px rgba(0,123,255,0.6);
+                }
+
+                .upload-spinner {
+                    width: 16px;
+                    height: 16px;
+                    border: 2px solid rgba(255,255,255,0.3);
+                    border-top: 2px solid white;
+                    border-radius: 50%;
+                    animation: spin 1s linear infinite;
+                }
+
+                .upload-overlay {
+                    position: absolute;
+                    inset: 0;
+                    background: rgba(0,0,0,0.7);
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    backdrop-filter: blur(5px);
+                }
+
+                .upload-progress {
+                    color: white;
+                    font-size: 0.8rem;
+                    font-weight: 600;
+                }
+
+                .file-selected {
+                    color: #4CAF50;
+                    font-size: 0.9rem;
+                    text-align: center;
+                    padding: 0.5rem 1rem;
+                    background: rgba(76,175,80,0.1);
+                    border-radius: 8px;
+                    border: 1px solid rgba(76,175,80,0.3);
+                }
+
+                .avatar-help {
+                    color: #ccc;
+                    font-size: 0.85rem;
+                    text-align: center;
+                    background: rgba(255,255,255,0.05);
+                    padding: 0.5rem 1rem;
+                    border-radius: 8px;
+                    border: 1px solid rgba(255,255,255,0.1);
+                }
+
+                /* Profile Form */
+                .profile-form {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1.5rem;
+                    margin-bottom: 2rem;
+                }
+
+                .form-group {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.5rem;
+                }
+
+                .form-label {
+                    color: #fff;
+                    font-size: 1rem;
+                    font-weight: 600;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                }
+
+                .form-input {
+                    width: 100%;
+                    padding: 1rem 1.25rem;
+                    font-size: 1rem;
+                    border-radius: 12px;
+                    border: 2px solid;
+                    background-color: rgba(255,255,255,0.05);
+                    color: #fff;
+                    outline: none;
+                    transition: all 0.3s ease;
+                    font-family: inherit;
+                }
+
+                .form-input.disabled {
+                    border-color: rgba(255,255,255,0.1);
+                    cursor: not-allowed;
+                    color: #ccc;
+                }
+
+                .form-input.editable {
+                    border-color: rgba(255,255,255,0.3);
+                    background-color: rgba(255,255,255,0.1);
+                }
+
+                .form-input.editable:focus {
+                    border-color: #667eea;
+                    box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
+                    background-color: rgba(255,255,255,0.15);
+                }
+
+                .form-input::placeholder {
+                    color: rgba(255,255,255,0.5);
+                }
+
+                .form-help {
+                    color: #999;
+                    font-size: 0.85rem;
+                }
+
+                .info-grid {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 1.5rem;
+                    margin-top: 1rem;
+                }
+
+                .info-item {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.5rem;
+                }
+
+                .info-value {
+                    padding: 1rem 1.25rem;
+                    border-radius: 12px;
+                    background-color: rgba(255,255,255,0.05);
+                    color: #ccc;
+                    font-size: 1rem;
+                    border: 1px solid rgba(255,255,255,0.1);
+                }
+
+                /* Action Buttons */
+                .action-buttons {
+                    display: flex;
+                    gap: 1rem;
+                    justify-content: center;
+                    flex-wrap: wrap;
+                }
+
+                .btn-primary,
+                .btn-success,
+                .btn-cancel {
+                    padding: 1rem 2rem;
+                    border: none;
+                    border-radius: 12px;
+                    font-size: 1rem;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    min-width: 150px;
+                    justify-content: center;
+                }
+
+                .btn-primary {
+                    background: linear-gradient(45deg, #667eea, #764ba2);
+                    color: white;
+                    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+                }
+
+                .btn-primary:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+                }
+
+                .btn-success {
+                    background: linear-gradient(45deg, #4CAF50, #45a049);
+                    color: white;
+                    box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
+                }
+
+                .btn-success:hover:not(.loading) {
+                    transform: translateY(-2px);
+                    box-shadow: 0 8px 25px rgba(76, 175, 80, 0.6);
+                }
+
+                .btn-success.loading {
+                    background: rgba(76, 175, 80, 0.6);
+                    cursor: not-allowed;
+                }
+
+                .btn-cancel {
+                    background: rgba(255,255,255,0.1);
+                    color: #fff;
+                    border: 2px solid rgba(255,255,255,0.2);
+                    box-shadow: none;
+                }
+
+                .btn-cancel:hover:not(:disabled) {
+                    background: rgba(255,255,255,0.2);
+                    transform: translateY(-2px);
+                }
+
+                .btn-cancel:disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
+                }
+
+                /* Mobile Responsive */
+                @media (max-width: 768px) {
+                    .profile-header {
+                        margin: 0.5rem;
+                        border-radius: 12px;
+                    }
+
+                    .profile-card {
+                        margin: 0.5rem;
+                        padding: 1.5rem;
+                        border-radius: 12px;
+                    }
+
+                    .avatar-image,
+                    .default-avatar {
+                        width: 100px;
+                        height: 100px;
+                    }
+
+                    .avatar-upload-btn {
+                        width: 35px;
+                        height: 35px;
+                        font-size: 0.9rem;
+                    }
+
+                    .info-grid {
+                        grid-template-columns: 1fr;
+                        gap: 1rem;
+                    }
+
+                    .action-buttons {
+                        flex-direction: column;
+                        align-items: stretch;
+                    }
+
+                    .btn-primary,
+                    .btn-success,
+                    .btn-cancel {
+                        min-width: auto;
+                        width: 100%;
+                    }
+                }
+
+                @media (max-width: 480px) {
+                    .profile-card {
+                        padding: 1rem;
+                    }
+
+                    .avatar-image,
+                    .default-avatar {
+                        width: 80px;
+                        height: 80px;
+                    }
+
+                    .avatar-upload-btn {
+                        width: 30px;
+                        height: 30px;
+                        font-size: 0.8rem;
+                    }
+
+                    .form-input,
+                    .info-value {
+                        padding: 0.75rem 1rem;
+                        font-size: 0.9rem;
+                    }
+
+                    .btn-primary,
+                    .btn-success,
+                    .btn-cancel {
+                        padding: 0.75rem 1.5rem;
+                        font-size: 0.9rem;
+                    }
+                }
+
+                /* High DPI adjustments */
+                @media (min-resolution: 150dpi) {
+                    .profile-card {
+                        padding: 2.5rem;
+                    }
+                    
+                    .avatar-image,
+                    .default-avatar {
+                        width: 140px;
+                        height: 140px;
+                    }
+                    
+                    .form-input,
+                    .info-value {
+                        padding: 1.2rem 1.5rem;
+                    }
+                }
+
+                /* Animations */
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+
+                /* Loading states */
+                .loading-spinner {
+                    animation: spin 1s linear infinite;
+                }
+
+                .upload-spinner {
+                    animation: spin 1s linear infinite;
+                }
+            `}</style>
         </div>
     );
 };

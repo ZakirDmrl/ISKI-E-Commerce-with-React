@@ -36,7 +36,7 @@ const CheckoutPage: React.FC = () => {
 
             alert('Ödeme başarıyla tamamlandı ve siparişiniz kaydedildi!');
             navigate('/');
-        } catch (err: any) {
+        } catch (err ) {
             alert(`Ödeme sırasında bir hata oluştu: ${err.message}`);
         }
     };

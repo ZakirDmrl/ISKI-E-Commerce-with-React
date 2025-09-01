@@ -7,462 +7,459 @@ import { signOut } from '../store/authSlice';
 import { useState } from 'react';
 
 const Navbar = () => {
-	const dispatch = useDispatch<AppDispatch>();
-	const navigate = useNavigate();
-	const { isAuthenticated, user } = useSelector((state: RootState) => state.auth);
-	const cartItems = useSelector((state: RootState) => state.cart.items);
-	const totalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0);
-	const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const dispatch = useDispatch<AppDispatch>();
+    const navigate = useNavigate();
+    const { isAuthenticated, user } = useSelector((state: RootState) => state.auth);
+    const cartItems = useSelector((state: RootState) => state.cart.items);
+    const totalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-	const handleSignOut = async () => {
-		const resultAction = await dispatch(signOut());
-		if (signOut.fulfilled.match(resultAction)) {
-			dispatch(setNotification({
-				message: 'Çıkış işlemi başarılı.',
-				type: 'success'
-			}));
-			navigate('/auth');
-		} else if (signOut.rejected.match(resultAction)) {
-			dispatch(setNotification({
-				message: 'Çıkış işlemi başarısız.',
-				type: 'error'
-			}));
-		}
-		setTimeout(() => dispatch(clearNotification()), 3000);
-		setIsMobileMenuOpen(false);
-	};
+    const handleSignOut = async () => {
+        const resultAction = await dispatch(signOut());
+        if (signOut.fulfilled.match(resultAction)) {
+            dispatch(setNotification({
+                message: 'Çıkış işlemi başarılı.',
+                type: 'success'
+            }));
+            navigate('/auth');
+        } else if (signOut.rejected.match(resultAction)) {
+            dispatch(setNotification({
+                message: 'Çıkış işlemi başarısız.',
+                type: 'error'
+            }));
+        }
+        setTimeout(() => dispatch(clearNotification()), 3000);
+        setIsMobileMenuOpen(false);
+    };
 
-	const toggleMobileMenu = () => {
-		setIsMobileMenuOpen(!isMobileMenuOpen);
-	};
+    const toggleMobileMenu = () => {
+        setIsMobileMenuOpen(!isMobileMenuOpen);
+    };
 
-	return (
-		<nav className="navbar">
-			<div className="navbar-container">
-				{/* Logo Section */}
-				<Link to="/" className="navbar-brand">
-					<img 
-						src="https://upload.wikimedia.org/wikipedia/tr/e/e3/Iski-logo.png?20200604131947" 
-						alt="İSKİ E-Commerce Logo" 
-						className="navbar-logo"
-					/>
-					<span className="navbar-title">İSKİ E-Commerce</span>
-				</Link>
+    // Supabase'den gelen avatar_url'yi kullan, yoksa bir placeholder göster
+    const avatarUrl = user?.avatarUrl || `https://ui-avatars.com/api/?name=${user?.email}&background=007bff&color=fff&rounded=true&bold=true`;
 
-				{/* Mobile Menu Button */}
-				<button 
-					className="mobile-menu-button"
-					onClick={toggleMobileMenu}
-				>
-					<span></span>
-					<span></span>
-					<span></span>
-				</button>
+    return (
+        <nav className="navbar">
+            <div className="navbar-container">
+                {/* Logo Section */}
+                <Link to="/" className="navbar-brand">
+                    <img 
+                        src="https://upload.wikimedia.org/wikipedia/tr/e/e3/Iski-logo.png?20200604131947" 
+                        alt="İSKİ E-Commerce Logo" 
+                        className="navbar-logo"
+                    />
+                    <span className="navbar-title">İSKİ E-Commerce</span>
+                </Link>
 
-				{/* Navigation Links */}
-				<div className={`navbar-nav ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
-					{isAuthenticated ? (
-						<>
-							{/* User Welcome */}
-							<div className="user-info">
-								<div className="user-avatar">
-									{user?.email?.charAt(0).toUpperCase()}
-								</div>
-								<span className="user-email">
-									{user?.email}
-								</span>
-							</div>
+                {/* Mobile Menu Button */}
+                <button 
+                    className="mobile-menu-button"
+                    onClick={toggleMobileMenu}
+                >
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
 
-							{/* Admin Panel Link */}
-							{user?.isAdmin && (
-								<button
-									onClick={() => {
-										navigate('/admin');
-										setIsMobileMenuOpen(false);
-									}}
-									className="nav-btn admin-btn"
-								>
-									🛠 Admin Paneli
-								</button>
-							)}
+                {/* Navigation Links */}
+                <div className={`navbar-nav ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
+                    {isAuthenticated ? (
+                        <>
+                            {/* User Welcome with Image Avatar */}
+                            <div className="user-info">
+                                {/* Doğrudan avatar_url'yi kullanıyoruz */}
+                                <img src={avatarUrl} alt="User Avatar" className="user-avatar-img" />
+                                <span className="user-email">
+                                    {user?.email}
+                                </span>
+                            </div>
 
-							{/* Profile Link */}
-							<Link 
-								to="/profile" 
-								className="nav-link"
-								onClick={() => setIsMobileMenuOpen(false)}
-							>
-								👤 Profil
-							</Link>
+                            {/* Admin Panel Link */}
+                            {user?.isAdmin && (
+                                <button
+                                    onClick={() => {
+                                        navigate('/admin');
+                                        setIsMobileMenuOpen(false);
+                                    }}
+                                    className="nav-btn admin-btn"
+                                >
+                                    🛠 Admin Paneli
+                                </button>
+                            )}
 
-							{/* Cart Link */}
-							<Link 
-								to="/cart" 
-								className={`nav-link cart-link ${totalItems > 0 ? 'has-items' : ''}`}
-								onClick={() => setIsMobileMenuOpen(false)}
-							>
-								🛒 Sepet
-								{totalItems > 0 && (
-									<span className="cart-badge">
-										{totalItems}
-									</span>
-								)}
-							</Link>
+                            {/* Profile Link */}
+                            <Link 
+                                to="/profile" 
+                                className="nav-link"
+                                onClick={() => setIsMobileMenuOpen(false)}
+                            >
+                                👤 Profil
+                            </Link>
 
-							{/* Sign Out Button */}
-							<button 
-								onClick={handleSignOut} 
-								className="nav-btn signout-btn"
-							>
-								Çıkış
-							</button>
-						</>
-					) : (
-						<Link 
-							to="/auth" 
-							className="nav-link auth-link"
-							onClick={() => setIsMobileMenuOpen(false)}
-						>
-							Giriş Yap
-						</Link>
-					)}
-				</div>
-			</div>
+                            {/* Cart Link */}
+                            <Link 
+                                to="/cart" 
+                                className={`nav-link cart-link ${totalItems > 0 ? 'has-items' : ''}`}
+                                onClick={() => setIsMobileMenuOpen(false)}
+                            >
+                                🛒 Sepet
+                                {totalItems > 0 && (
+                                    <span className="cart-badge">
+                                        {totalItems}
+                                    </span>
+                                )}
+                            </Link>
 
-			<style>{`
-				.navbar {
-					background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-					padding: 15px 0;
-					box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-					position: fixed;
-					top: 0;
-					left: 0;
-					right: 0;
-					z-index: 1000;
-					backdrop-filter: blur(10px);
-				}
+                            {/* Sign Out Button */}
+                            <button 
+                                onClick={handleSignOut} 
+                                className="nav-btn signout-btn"
+                            >
+                                Çıkış
+                            </button>
+                        </>
+                    ) : (
+                        <Link 
+                            to="/auth" 
+                            className="nav-link auth-link"
+                            onClick={() => setIsMobileMenuOpen(false)}
+                        >
+                            Giriş Yap
+                        </Link>
+                    )}
+                </div>
+            </div>
 
-				.navbar-container {
-					max-width: 1400px;
-					margin: 0 auto;
-					display: flex;
-					justify-content: space-between;
-					align-items: center;
-					padding: 0 20px;
-					position: relative;
-				}
+            <style>{`
+                .navbar {
+                    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+                    padding: 15px 0;
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    z-index: 1000;
+                    backdrop-filter: blur(10px);
+                }
 
-				.navbar-brand {
-					display: flex;
-					align-items: center;
-					gap: 10px;
-					text-decoration: none;
-					color: white;
-				}
+                .navbar-container {
+                    max-width: 1400px;
+                    margin: 0 auto;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 0 20px;
+                    position: relative;
+                }
 
-				.navbar-logo {
-					height: 80px;
-					object-fit: contain;
-					transition: transform 0.3s ease;
-				}
+                .navbar-brand {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    text-decoration: none;
+                    color: white;
+                }
 
-				.navbar-logo:hover {
-					transform: scale(1.05);
-				}
+                .navbar-logo {
+                    height: 80px;
+                    object-fit: contain;
+                    transition: transform 0.3s ease;
+                }
 
-				.navbar-title {
-					font-size: 2rem;
-					font-weight: 700;
-					background: linear-gradient(45deg, #fff, #e0e0e0);
-					-webkit-background-clip: text;
-					-webkit-text-fill-color: transparent;
-					background-clip: text;
-					transition: all 0.3s ease;
-				}
+                .navbar-logo:hover {
+                    transform: scale(1.05);
+                }
 
-				.mobile-menu-button {
-					display: none;
-					flex-direction: column;
-					background: none;
-					border: none;
-					cursor: pointer;
-					padding: 10px;
-					position: relative;
-					z-index: 1001;
-				}
+                .navbar-title {
+                    font-size: 2rem;
+                    font-weight: 700;
+                    background: linear-gradient(45deg, #fff, #e0e0e0);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    background-clip: text;
+                    transition: all 0.3s ease;
+                }
 
-				.mobile-menu-button span {
-					width: 25px;
-					height: 3px;
-					background: white;
-					margin: 3px 0;
-					transition: 0.3s;
-					border-radius: 2px;
-				}
+                .mobile-menu-button {
+                    display: none;
+                    flex-direction: column;
+                    background: none;
+                    border: none;
+                    cursor: pointer;
+                    padding: 10px;
+                    position: relative;
+                    z-index: 1001;
+                }
 
-				.mobile-menu-button.active span:nth-child(1) {
-					transform: rotate(-45deg) translate(-5px, 6px);
-				}
+                .mobile-menu-button span {
+                    width: 25px;
+                    height: 3px;
+                    background: white;
+                    margin: 3px 0;
+                    transition: 0.3s;
+                    border-radius: 2px;
+                }
 
-				.mobile-menu-button.active span:nth-child(2) {
-					opacity: 0;
-				}
+                .mobile-menu-button.active span:nth-child(1) {
+                    transform: rotate(-45deg) translate(-5px, 6px);
+                }
 
-				.mobile-menu-button.active span:nth-child(3) {
-					transform: rotate(45deg) translate(-5px, -6px);
-				}
+                .mobile-menu-button.active span:nth-child(2) {
+                    opacity: 0;
+                }
 
-				.navbar-nav {
-					display: flex;
-					align-items: center;
-					gap: 25px;
-				}
+                .mobile-menu-button.active span:nth-child(3) {
+                    transform: rotate(45deg) translate(-5px, -6px);
+                }
 
-				.user-info {
-					display: flex;
-					align-items: center;
-					gap: 15px;
-					background: rgba(255,255,255,0.1);
-					padding: 8px 16px;
-					border-radius: 25px;
-					backdrop-filter: blur(10px);
-				}
+                .navbar-nav {
+                    display: flex;
+                    align-items: center;
+                    gap: 25px;
+                }
 
-				.user-avatar {
-					width: 35px;
-					height: 35px;
-					border-radius: 50%;
-					background: linear-gradient(45deg, #667eea, #764ba2);
-					display: flex;
-					align-items: center;
-					justify-content: center;
-					color: white;
-					font-weight: bold;
-					font-size: 0.9rem;
-				}
+                .user-info {
+                    display: flex;
+                    align-items: center;
+                    gap: 15px;
+                    background: rgba(255,255,255,0.1);
+                    padding: 8px 16px;
+                    border-radius: 25px;
+                    backdrop-filter: blur(10px);
+                }
 
-				.user-email {
-					font-size: 0.95rem;
-					color: #e0e0e0;
-					max-width: 150px;
-					overflow: hidden;
-					text-overflow: ellipsis;
-					white-space: nowrap;
-				}
+                .user-avatar-img {
+                    width: 35px;
+                    height: 35px;
+                    border-radius: 50%;
+                    object-fit: cover;
+                    border: 2px solid white;
+                }
 
-				.nav-btn {
-					padding: 10px 20px;
-					border-radius: 25px;
-					border: 1px solid rgba(255,255,255,0.2);
-					color: white;
-					font-weight: 600;
-					cursor: pointer;
-					transition: all 0.3s ease;
-					text-decoration: none;
-					display: inline-block;
-					font-size: 0.9rem;
-				}
+                .user-email {
+                    font-size: 0.95rem;
+                    color: #e0e0e0;
+                    max-width: 150px;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                }
 
-				.admin-btn {
-					background: linear-gradient(45deg, #00c6ff, #0072ff);
-				}
+                .nav-btn {
+                    padding: 10px 20px;
+                    border-radius: 25px;
+                    border: 1px solid rgba(255,255,255,0.2);
+                    color: white;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    text-decoration: none;
+                    display: inline-block;
+                    font-size: 0.9rem;
+                }
 
-				.signout-btn {
-					background: linear-gradient(45deg, #ff6b6b, #ee5a24);
-				}
+                .admin-btn {
+                    background: linear-gradient(45deg, #00c6ff, #0072ff);
+                }
 
-				.nav-btn:hover {
-					transform: translateY(-2px);
-					box-shadow: 0 8px 25px rgba(0,0,0,0.3);
-				}
+                .signout-btn {
+                    background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+                }
 
-				.nav-link {
-					color: white;
-					text-decoration: none;
-					padding: 10px 20px;
-					border-radius: 25px;
-					background: rgba(255,255,255,0.15);
-					font-weight: 500;
-					border: 1px solid rgba(255,255,255,0.2);
-					transition: all 0.3s ease;
-					display: flex;
-					align-items: center;
-					gap: 8px;
-					font-size: 0.9rem;
-				}
+                .nav-btn:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+                }
 
-				.nav-link:hover {
-					background: rgba(255,255,255,0.25);
-					transform: translateY(-1px);
-				}
+                .nav-link {
+                    color: white;
+                    text-decoration: none;
+                    padding: 10px 20px;
+                    border-radius: 25px;
+                    background: rgba(255,255,255,0.15);
+                    font-weight: 500;
+                    border: 1px solid rgba(255,255,255,0.2);
+                    transition: all 0.3s ease;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    font-size: 0.9rem;
+                }
 
-				.cart-link.has-items {
-					background: linear-gradient(45deg, #f093fb 0%, #f5576c 100%);
-				}
+                .nav-link:hover {
+                    background: rgba(255,255,255,0.25);
+                    transform: translateY(-1px);
+                }
 
-				.cart-badge {
-					background: rgba(255,255,255,0.3);
-					color: white;
-					border-radius: 50%;
-					padding: 4px 8px;
-					font-size: 0.8rem;
-					font-weight: bold;
-					min-width: 24px;
-					text-align: center;
-				}
+                .cart-link.has-items {
+                    background: linear-gradient(45deg, #f093fb 0%, #f5576c 100%);
+                }
 
-				.auth-link {
-					background: linear-gradient(45deg, #667eea, #764ba2);
-					padding: 12px 25px;
-					font-weight: 600;
-				}
+                .cart-badge {
+                    background: rgba(255,255,255,0.3);
+                    color: white;
+                    border-radius: 50%;
+                    padding: 4px 8px;
+                    font-size: 0.8rem;
+                    font-weight: bold;
+                    min-width: 24px;
+                    text-align: center;
+                }
 
-				/* Mobile Styles */
-				@media (max-width: 1200px) {
-					.navbar-title {
-						font-size: 1.5rem;
-					}
+                .auth-link {
+                    background: linear-gradient(45deg, #667eea, #764ba2);
+                    padding: 12px 25px;
+                    font-weight: 600;
+                }
 
-					.navbar-logo {
-						height: 60px;
-					}
+                /* Mobile Styles */
+                @media (max-width: 1200px) {
+                    .navbar-title {
+                        font-size: 1.5rem;
+                    }
 
-					.user-email {
-						max-width: 120px;
-					}
-				}
+                    .navbar-logo {
+                        height: 60px;
+                    }
 
-				@media (max-width: 968px) {
-					.mobile-menu-button {
-						display: flex;
-					}
+                    .user-email {
+                        max-width: 120px;
+                    }
+                }
 
-					.navbar-nav {
-						position: fixed;
-						top: 0;
-						right: -100%;
-						height: 100vh;
-						width: 300px;
-						background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-						flex-direction: column;
-						justify-content: flex-start;
-						align-items: stretch;
-						padding: 120px 20px 20px;
-						transition: right 0.3s ease;
-						box-shadow: -5px 0 20px rgba(0,0,0,0.3);
-						gap: 15px;
-					}
+                @media (max-width: 968px) {
+                    .mobile-menu-button {
+                        display: flex;
+                    }
 
-					.navbar-nav.mobile-open {
-						right: 0;
-					}
+                    .navbar-nav {
+                        position: fixed;
+                        top: 0;
+                        right: -100%;
+                        height: 100vh;
+                        width: 300px;
+                        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+                        flex-direction: column;
+                        justify-content: flex-start;
+                        align-items: stretch;
+                        padding: 120px 20px 20px;
+                        transition: right 0.3s ease;
+                        box-shadow: -5px 0 20px rgba(0,0,0,0.3);
+                        gap: 15px;
+                    }
 
-					.user-info {
-						flex-direction: column;
-						text-align: center;
-						padding: 15px;
-						background: rgba(255,255,255,0.15);
-					}
+                    .navbar-nav.mobile-open {
+                        right: 0;
+                    }
 
-					.user-email {
-						max-width: none;
-						text-align: center;
-					}
+                    .user-info {
+                        flex-direction: column;
+                        text-align: center;
+                        padding: 15px;
+                        background: rgba(255,255,255,0.15);
+                    }
 
-					.nav-link,
-					.nav-btn {
-						width: 100%;
-						text-align: center;
-						justify-content: center;
-						margin: 0;
-					}
+                    .user-email {
+                        max-width: none;
+                        text-align: center;
+                    }
 
-					.cart-link {
-						position: relative;
-					}
+                    .nav-link,
+                    .nav-btn {
+                        width: 100%;
+                        text-align: center;
+                        justify-content: center;
+                        margin: 0;
+                    }
 
-					.cart-badge {
-						position: absolute;
-						right: 15px;
-						top: 50%;
-						transform: translateY(-50%);
-					}
-				}
+                    .cart-link {
+                        position: relative;
+                    }
 
-				@media (max-width: 768px) {
-					.navbar-container {
-						padding: 0 15px;
-					}
+                    .cart-badge {
+                        position: absolute;
+                        right: 15px;
+                        top: 50%;
+                        transform: translateY(-50%);
+                    }
+                }
 
-					.navbar-title {
-						font-size: 1.3rem;
-					}
+                @media (max-width: 768px) {
+                    .navbar-container {
+                        padding: 0 15px;
+                    }
 
-					.navbar-logo {
-						height: 50px;
-					}
+                    .navbar-title {
+                        font-size: 1.3rem;
+                    }
 
-					.navbar-nav {
-						width: 280px;
-						padding: 100px 15px 15px;
-					}
-				}
+                    .navbar-logo {
+                        height: 50px;
+                    }
 
-				@media (max-width: 480px) {
-					.navbar-container {
-						padding: 0 10px;
-					}
+                    .navbar-nav {
+                        width: 280px;
+                        padding: 100px 15px 15px;
+                    }
+                }
 
-					.navbar-title {
-						font-size: 1.1rem;
-					}
+                @media (max-width: 480px) {
+                    .navbar-container {
+                        padding: 0 10px;
+                    }
 
-					.navbar-logo {
-						height: 45px;
-					}
+                    .navbar-title {
+                        font-size: 1.1rem;
+                    }
 
-					.navbar-nav {
-						width: 250px;
-					}
+                    .navbar-logo {
+                        height: 45px;
+                    }
 
-					.user-info {
-						padding: 12px;
-					}
+                    .navbar-nav {
+                        width: 250px;
+                    }
 
-					.nav-link,
-					.nav-btn {
-						padding: 12px 16px;
-						font-size: 0.85rem;
-					}
-				}
+                    .user-info {
+                        padding: 12px;
+                    }
 
-				/* High DPI adjustments */
-				@media (min-resolution: 150dpi) {
-					.navbar {
-						padding: 18px 0;
-					}
+                    .nav-link,
+                    .nav-btn {
+                        padding: 12px 16px;
+                        font-size: 0.85rem;
+                    }
+                }
 
-					.navbar-logo {
-						height: 85px;
-					}
-				}
+                /* High DPI adjustments */
+                @media (min-resolution: 150dpi) {
+                    .navbar {
+                        padding: 18px 0;
+                    }
 
-				/* Overlay for mobile menu */
-				@media (max-width: 968px) {
-					.navbar-nav.mobile-open::before {
-						content: '';
-						position: fixed;
-						top: 0;
-						left: 0;
-						width: 100vw;
-						height: 100vh;
-						background: rgba(0,0,0,0.5);
-						z-index: -1;
-					}
-				}
-			`}</style>
-		</nav>
-	);
+                    .navbar-logo {
+                        height: 85px;
+                    }
+                }
+
+                /* Overlay for mobile menu */
+                @media (max-width: 968px) {
+                    .navbar-nav.mobile-open::before {
+                        content: '';
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        width: 100vw;
+                        height: 100vh;
+                        background: rgba(0,0,0,0.5);
+                        z-index: -1;
+                    }
+                }
+            `}</style>
+        </nav>
+    );
 };
 
 export default Navbar;

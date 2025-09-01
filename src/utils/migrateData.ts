@@ -10,7 +10,7 @@ export const migrateProducts = async () => {
         }
         const products = await response.json();
 
-        const formattedProducts = products.map((product: any) => ({
+        const formattedProducts = products.map((product ) => ({
             // title, description, price, image ve category alanları aynı kalacak
             title: product.title,
             description: product.description,
@@ -31,7 +31,7 @@ export const migrateProducts = async () => {
         }
 
         console.log('Veri aktarımı başarıyla tamamlandı!');
-    } catch (error: any) {
+    } catch (error ) {
         console.error('Veri aktarımında hata:', error.message);
     }
 };

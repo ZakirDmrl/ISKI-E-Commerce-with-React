@@ -82,7 +82,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ product, onClose, o
             onProductUpdated(); // Tabloyu yeniden yükle
             onClose(); // Modal'ı kapat
 
-        } catch (error: any) {
+        } catch (error ) {
             dispatch(setNotification({ 
                 message: 'Ürün güncellenirken bir hata oluştu: ' + error.message, 
                 type: 'error' 

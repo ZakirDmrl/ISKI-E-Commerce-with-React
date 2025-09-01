@@ -77,7 +77,7 @@ const ProductDetail = () => {
                 };
                 
                 setProduct(productWithStock);
-            } catch (err: any) {
+            } catch (err) {
                 setError(err.message);
             } finally {
                 setLoading(false);
@@ -138,7 +138,7 @@ const ProductDetail = () => {
                 } : null);
             }
 
-        } catch (err: any) {
+        } catch (err) {
             dispatch(setNotification({ 
                 message: `Sepete eklenirken hata oluştu: ${err.message}`, 
                 type: 'error' 

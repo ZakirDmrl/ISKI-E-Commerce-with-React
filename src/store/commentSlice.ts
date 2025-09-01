@@ -16,9 +16,9 @@ const initialState: CommentState = {
 };
 
 // Ürüne ait yorumları ve beğenileri çekme
-export const fetchComments = createAsyncThunk<Comment[], number>(
+export const fetchComments = createAsyncThunk<Comment[], { productId: number, userId: string | null }>(
     'comments/fetchComments',
-    async (productId, { rejectWithValue }) => {
+    async ({ productId, userId }, { rejectWithValue }) => {
         try {
             const { data, error } = await supabase
                 .from('comments')
@@ -29,7 +29,7 @@ export const fetchComments = createAsyncThunk<Comment[], number>(
                         email,
                         username
                     ),
-                    comment_likes(count)
+                    comment_likes!left(user_id)
                 `)
                 .eq('product_id', productId)
                 .order('created_at', { ascending: false });
@@ -39,20 +39,24 @@ export const fetchComments = createAsyncThunk<Comment[], number>(
                 throw new Error(error.message);
             }
 
-            console.log('Fetched comments data:', data);
+            const formattedComments: Comment[] = (data as any[]).map(comment => {
+                const userLiked = comment.comment_likes.some((like ) => like.user_id === userId);
+                const likesCount = comment.comment_likes.length;
 
-            const formattedComments: Comment[] = (data as any[]).map(comment => ({
-                ...comment,
-                user_name: comment.profiles?.full_name || 
-                          comment.profiles?.username || 
-                          comment.profiles?.email?.split('@')[0] || 
-                          'Anonim',
-                user_email: comment.profiles?.email,
-                likes: comment.comment_likes?.length || 0,
-            }));
+                return {
+                    ...comment,
+                    user_name: comment.profiles?.full_name || 
+                                comment.profiles?.username || 
+                                comment.profiles?.email?.split('@')[0] || 
+                                'Anonim',
+                    user_email: comment.profiles?.email,
+                    likes: likesCount,
+                    user_liked: userLiked,
+                };
+            });
 
             return formattedComments;
-        } catch (error: any) {
+        } catch (error ) {
             console.error('fetchComments error:', error);
             return rejectWithValue(error.message || 'Yorumlar yüklenirken hata oluştu');
         }
@@ -109,7 +113,7 @@ export const addComment = createAsyncThunk<Comment, { productId: number, userId:
             };
 
             return formattedComment;
-        } catch (error: any) {
+        } catch (error ) {
             console.error('addComment error:', error);
             return rejectWithValue(error.message || 'Yorum eklenirken hata oluştu');
         }
@@ -126,7 +130,7 @@ export const toggleLike = createAsyncThunk<void, { commentId: number, userId: st
                 .select('id')
                 .eq('comment_id', commentId)
                 .eq('user_id', userId)
-                .single();
+                .maybeSingle();
 
             if (likeError && likeError.code !== 'PGRST116') {
                 throw new Error(likeError.message);
@@ -151,7 +155,7 @@ export const toggleLike = createAsyncThunk<void, { commentId: number, userId: st
                 
                 if (error) throw new Error(error.message);
             }
-        } catch (error: any) {
+        } catch (error ) {
             return rejectWithValue(error.message || 'Beğenme işlemi sırasında hata oluştu');
         }
     }

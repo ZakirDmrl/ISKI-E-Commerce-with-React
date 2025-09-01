@@ -130,7 +130,7 @@ const AddProductForm: React.FC = () => {
             dispatch(setNotification({ message: 'Ürün ve stok bilgileri başarıyla eklendi!', type: 'success' }));
             clearForm();
 
-        } catch (error: any) {
+        } catch (error) {
             dispatch(setNotification({ message: 'Ürün eklenirken bir hata oluştu: ' + error.message, type: 'error' }));
         }
 
