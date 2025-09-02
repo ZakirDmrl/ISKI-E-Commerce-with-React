@@ -247,80 +247,128 @@ const ProductDetail = () => {
 
     return (
         <div className="product-detail-page">
-            {/* Product Detail Card */}
-            <div className="product-detail-card">
-                <div className="product-content">
-                    {/* Product Image */}
-                    <div className="product-image-section">
-                        <div className="image-container">
-                            <img 
-                                src={product.image} 
-                                alt={product.title} 
-                                className={`product-image ${isOutOfStock ? 'out-of-stock' : ''}`}
-                            />
-                            {isOutOfStock && (
-                                <div className="out-of-stock-badge">
-                                    STOKTA YOK
+            {/* Ana Container - İki kolon layout */}
+            <div className="product-layout-container">
+                
+                {/* Sol Taraf - Product Detail Card (Sabit) */}
+                <div className="product-detail-section">
+                    <div className="product-detail-card">
+                        <div className="product-content">
+                            {/* Product Image */}
+                            <div className="product-image-section">
+                                <div className="image-container">
+                                    <img 
+                                        src={product.image} 
+                                        alt={product.title} 
+                                        className={`product-image ${isOutOfStock ? 'out-of-stock' : ''}`}
+                                    />
+                                    {isOutOfStock && (
+                                        <div className="out-of-stock-badge">
+                                            STOKTA YOK
+                                        </div>
+                                    )}
                                 </div>
-                            )}
-                        </div>
-                    </div>
-                    
-                    {/* Product Info */}
-                    <div className="product-info-section">
-                        <div className="category-badge">
-                            {product.category}
-                        </div>
-                        
-                        <h1 className="product-title">
-                            {product.title}
-                        </h1>
-                        
-                        <div className="product-description">
-                            <p>{product.description}</p>
-                        </div>
-                        
-                        {product.rating && product.rating > 0 && (
-                            <div className="product-rating">
-                                <div className="rating-stars">
-                                    {Array(Math.round(product.rating)).fill('⭐').join('')}
-                                </div>
-                                <span className="rating-text">
-                                    {product.rating.toFixed(1)} ({product.rating_count || 0} değerlendirme)
-                                </span>
                             </div>
-                        )}
+                            
+                            {/* Product Info */}
+                            <div className="product-info-section">
+                                <div className="category-badge">
+                                    {product.category}
+                                </div>
+                                
+                                <h1 className="product-title">
+                                    {product.title}
+                                </h1>
+                                
+                                <div className="product-description">
+                                    <p>{product.description}</p>
+                                </div>
+                                
+                                {product.rating && product.rating > 0 && (
+                                    <div className="product-rating">
+                                        <div className="rating-stars">
+                                            {Array(Math.round(product.rating)).fill('⭐').join('')}
+                                        </div>
+                                        <span className="rating-text">
+                                            {product.rating.toFixed(1)} ({product.rating_count || 0} değerlendirme)
+                                        </span>
+                                    </div>
+                                )}
 
-                        {/* Stok Durumu */}
-                        {getStockStatusDisplay()}
-                        
-                        <div className="product-price">
-                            {typeof product.price === 'number' ? product.price.toFixed(2) : product.price} TL
+                                {/* Stok Durumu */}
+                                {getStockStatusDisplay()}
+                                
+                                <div className="product-price">
+                                    {typeof product.price === 'number' ? product.price.toFixed(2) : product.price} TL
+                                </div>
+                                
+                                <button 
+                                    onClick={handleAddToCart}
+                                    disabled={isOutOfStock || addingToCart}
+                                    className={`add-to-cart-btn ${isOutOfStock ? 'disabled' : ''} ${addingToCart ? 'loading' : ''}`}
+                                >
+                                    {addingToCart 
+                                        ? '🔄 Ekleniyor...' 
+                                        : isOutOfStock 
+                                            ? '❌ Stokta Yok' 
+                                            : '🛒 Sepete Ekle'}
+                                </button>
+                            </div>
                         </div>
-                        
-                        <button 
-                            onClick={handleAddToCart}
-                            disabled={isOutOfStock || addingToCart}
-                            className={`add-to-cart-btn ${isOutOfStock ? 'disabled' : ''} ${addingToCart ? 'loading' : ''}`}
-                        >
-                            {addingToCart 
-                                ? '🔄 Ekleniyor...' 
-                                : isOutOfStock 
-                                    ? '❌ Stokta Yok' 
-                                    : '🛒 Sepete Ekle'}
-                        </button>
                     </div>
                 </div>
+
+                {/* Sağ Taraf - Comments Section (Scrollable) */}
+                <div className="comments-section-container">
+                    {product && <Comments productId={product.id} />}
+                </div>
+
             </div>
-            
-            {/* Comments Section */}
-            {product && <Comments productId={product.id} />}
 
             <style>{`
                 .product-detail-page {
                     width: 100%;
-                    padding: 0;
                     min-height: calc(100vh - 120px);
+                    padding: 0;
+                }
+
+                /* Ana Layout Container */
+                .product-layout-container {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 2rem;
+                    height: calc(100vh - 140px); /* Navbar için boşluk bırak */
+                    padding: 1rem;
+                    overflow: hidden;
+                }
+
+                /* Sol Taraf - Product Detail Section */
+                .product-detail-section {
+                    display: flex;
+                    flex-direction: column;
+                    overflow-y: auto;
+                    padding-right: 1rem;
+                    /* Custom scrollbar */
+                    scrollbar-width: thin;
+                    scrollbar-color: rgba(102,126,234,0.6) rgba(255,255,255,0.1);
+                }
+
+                .product-detail-section::-webkit-scrollbar {
+                    width: 6px;
+                }
+
+                .product-detail-section::-webkit-scrollbar-track {
+                    background: rgba(255,255,255,0.1);
+                    border-radius: 3px;
+                }
+
+                .product-detail-section::-webkit-scrollbar-thumb {
+                    background: rgba(102,126,234,0.6);
+                    border-radius: 3px;
+                }
+
+                .product-detail-section::-webkit-scrollbar-thumb:hover {
+                    background: rgba(102,126,234,0.8);
                 }
 
                 .product-detail-card {
@@ -328,17 +376,44 @@ const ProductDetail = () => {
                     backdrop-filter: blur(10px);
                     border-radius: 16px;
                     padding: clamp(1rem, 3vw, 2rem);
-                    margin: 1rem;
-                    margin-bottom: 2rem;
                     border: 1px solid rgba(255,255,255,0.1);
                     box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+                    flex-shrink: 0;
                 }
 
                 .product-content {
-                    display: grid;
-                    grid-template-columns: 1fr 1fr;
+                    display: flex;
+                    flex-direction: column;
                     gap: clamp(1.5rem, 4vw, 2rem);
-                    align-items: start;
+                }
+
+                /* Sağ Taraf - Comments Section */
+                .comments-section-container {
+                    display: flex;
+                    flex-direction: column;
+                    overflow-y: auto;
+                    padding-left: 1rem;
+                    /* Custom scrollbar */
+                    scrollbar-width: thin;
+                    scrollbar-color: rgba(102,126,234,0.6) rgba(255,255,255,0.1);
+                }
+
+                .comments-section-container::-webkit-scrollbar {
+                    width: 6px;
+                }
+
+                .comments-section-container::-webkit-scrollbar-track {
+                    background: rgba(255,255,255,0.1);
+                    border-radius: 3px;
+                }
+
+                .comments-section-container::-webkit-scrollbar-thumb {
+                    background: rgba(102,126,234,0.6);
+                    border-radius: 3px;
+                }
+
+                .comments-section-container::-webkit-scrollbar-thumb:hover {
+                    background: rgba(102,126,234,0.8);
                 }
 
                 /* Product Image Section */
@@ -357,12 +432,12 @@ const ProductDetail = () => {
                     display: flex;
                     justify-content: center;
                     align-items: center;
-                    min-height: 300px;
+                    min-height: 250px;
                 }
 
                 .product-image {
                     max-width: 100%;
-                    max-height: clamp(300px, 50vh, 400px);
+                    max-height: clamp(250px, 40vh, 350px);
                     object-fit: contain;
                     border-radius: 8px;
                     transition: filter 0.3s ease;
@@ -404,7 +479,7 @@ const ProductDetail = () => {
                 }
 
                 .product-title {
-                    font-size: clamp(1.5rem, 4vw, 2rem);
+                    font-size: clamp(1.3rem, 3vw, 1.8rem);
                     font-weight: 700;
                     color: #fff;
                     margin: 0;
@@ -436,12 +511,12 @@ const ProductDetail = () => {
                 }
 
                 .rating-stars {
-                    font-size: clamp(1.2rem, 3vw, 1.5rem);
+                    font-size: clamp(1.1rem, 2.5vw, 1.3rem);
                 }
 
                 .rating-text {
                     color: #ccc;
-                    font-size: clamp(0.85rem, 2vw, 0.9rem);
+                    font-size: clamp(0.8rem, 1.8vw, 0.9rem);
                 }
 
                 /* Stock Status Styles */
@@ -479,7 +554,7 @@ const ProductDetail = () => {
 
                 .stock-text {
                     font-weight: 600;
-                    font-size: clamp(0.9rem, 2vw, 1rem);
+                    font-size: clamp(0.85rem, 1.8vw, 0.95rem);
                 }
 
                 .stock-status.out-of-stock .stock-text {
@@ -495,13 +570,13 @@ const ProductDetail = () => {
                 }
 
                 .reserved-info {
-                    font-size: 0.85rem;
+                    font-size: 0.8rem;
                     color: #ccc;
                     margin-bottom: 0.25rem;
                 }
 
                 .sku-info {
-                    font-size: 0.85rem;
+                    font-size: 0.8rem;
                     color: #aaa;
                 }
 
@@ -514,7 +589,7 @@ const ProductDetail = () => {
 
                 /* Product Price */
                 .product-price {
-                    font-size: clamp(2rem, 5vw, 2.5rem);
+                    font-size: clamp(1.8rem, 4vw, 2.2rem);
                     font-weight: 700;
                     background: linear-gradient(45deg, #4CAF50, #45a049);
                     -webkit-background-clip: text;
@@ -530,7 +605,7 @@ const ProductDetail = () => {
                     color: white;
                     border: none;
                     border-radius: 12px;
-                    font-size: clamp(1rem, 2vw, 1.1rem);
+                    font-size: clamp(0.95rem, 2vw, 1.1rem);
                     font-weight: 600;
                     cursor: pointer;
                     transition: all 0.3s ease;
@@ -588,35 +663,34 @@ const ProductDetail = () => {
                     margin: 0;
                 }
 
-                /* Mobile Responsive */
+                /* Mobile Responsive - Tek kolon layout */
                 @media (max-width: 968px) {
-                    .product-content {
+                    .product-layout-container {
                         grid-template-columns: 1fr;
-                        gap: 1.5rem;
+                        height: auto;
+                        gap: 1rem;
+                        overflow: visible;
                     }
 
-                    .product-image-section {
-                        order: 1;
+                    .product-detail-section,
+                    .comments-section-container {
+                        overflow-y: visible;
+                        padding: 0;
+                        height: auto;
                     }
 
-                    .product-info-section {
-                        order: 2;
-                    }
-
-                    .image-container {
-                        min-height: 250px;
-                    }
-
-                    .product-rating {
-                        flex-direction: column;
-                        align-items: flex-start;
-                        gap: 0.5rem;
+                    .product-detail-card {
+                        margin-bottom: 1rem;
                     }
                 }
 
                 @media (max-width: 768px) {
+                    .product-layout-container {
+                        padding: 0.5rem;
+                        gap: 0.5rem;
+                    }
+
                     .product-detail-card {
-                        margin: 0.5rem;
                         padding: 1rem;
                         border-radius: 12px;
                     }
@@ -631,11 +705,6 @@ const ProductDetail = () => {
                         right: 0.5rem;
                         padding: 0.4rem 0.6rem;
                         font-size: 0.75rem;
-                    }
-
-                    .stock-header {
-                        flex-wrap: wrap;
-                        gap: 0.5rem;
                     }
                 }
 
@@ -659,6 +728,9 @@ const ProductDetail = () => {
 
                     .product-rating {
                         padding: 0.75rem;
+                        flex-direction: column;
+                        align-items: flex-start;
+                        gap: 0.5rem;
                     }
 
                     .stock-status {
@@ -666,30 +738,18 @@ const ProductDetail = () => {
                     }
                 }
 
-                /* High DPI adjustments */
-                @media (min-resolution: 150dpi) {
-                    .product-detail-card {
-                        padding: 2.5rem;
-                    }
-                    
-                    .image-container {
-                        padding: 2rem;
-                        min-height: 350px;
-                    }
-                    
-                    .add-to-cart-btn {
-                        padding: 1.2rem;
+                /* Tablet landscape için özel düzenleme */
+                @media (min-width: 769px) and (max-width: 1024px) and (orientation: landscape) {
+                    .product-layout-container {
+                        height: calc(100vh - 120px);
                     }
                 }
 
-                /* Dark mode enhancements */
-                @media (prefers-color-scheme: dark) {
-                    .product-detail-card {
-                        background: rgba(255,255,255,0.03);
-                    }
-                    
-                    .image-container {
-                        background: rgba(255,255,255,0.03);
+                /* Geniş ekranlar için optimizasyon */
+                @media (min-width: 1400px) {
+                    .product-layout-container {
+                        max-width: 1400px;
+                        margin: 0 auto;
                     }
                 }
             `}</style>

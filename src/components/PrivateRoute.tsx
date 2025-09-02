@@ -10,7 +10,9 @@ interface PrivateRouteProps {
 }
 
 const PrivateRoute: React.FC<PrivateRouteProps> = ({ isAdminRoute }) => {
+	// Store dan kullacının auth bilgisini al (kimliği doğrulanmış mı?)
     const { isAuthenticated, status, user } = useSelector((state: RootState) => state.auth);
+	// Mevcut url yi içeren bir nesne döndürür.
     const location = useLocation();
     const [isReady, setIsReady] = useState(false);
 
@@ -31,7 +33,6 @@ const PrivateRoute: React.FC<PrivateRouteProps> = ({ isAdminRoute }) => {
     if (isAdminRoute && !(user as AppUser)?.isAdmin) {
         return <Navigate to="/" replace />;
     }
-    
     return <Outlet />;
 };
 

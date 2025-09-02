@@ -104,54 +104,63 @@ const authSlice = createSlice({
             state.status = 'succeeded';
         },
     },
-    extraReducers: (builder) => {
-        builder
-            // signIn Reducer'ları
-            .addCase(signIn.pending, (state) => {
-                state.status = 'loading';
-                state.error = null;
-            })
-            .addCase(signIn.fulfilled, (state, action: PayloadAction<AppUser | null>) => {
-                state.status = 'succeeded';
-                state.user = action.payload;
-                state.isAuthenticated = !!action.payload;
-            })
-            .addCase(signIn.rejected, (state, action) => {
-                state.status = 'failed';
-                state.error = action.payload as string;
-                state.user = null;
-                state.isAuthenticated = false;
-            })
-            // signUp Reducer'ları
-            .addCase(signUp.pending, (state) => {
-                state.status = 'loading';
-                state.error = null;
-            })
-            .addCase(signUp.fulfilled, (state, action: PayloadAction<AppUser | null>) => {
-                state.status = 'succeeded';
-                state.user = action.payload;
-                state.isAuthenticated = !!action.payload;
-            })
-            .addCase(signUp.rejected, (state, action) => {
-                state.status = 'failed';
-                state.error = action.payload as string;
-                state.user = null;
-                state.isAuthenticated = false;
-            })
-            // signOut Reducer'ları
-            .addCase(signOut.pending, (state) => {
-                state.status = 'loading';
-            })
-            .addCase(signOut.fulfilled, (state) => {
-                state.status = 'succeeded';
-                state.user = null;
-                state.isAuthenticated = false;
-            })
-            .addCase(signOut.rejected, (state, action) => {
-                state.status = 'failed';
-                state.error = action.payload as string;
-            });
-    },
+extraReducers: (builder) => {
+    builder
+        // Kullanıcı giriş isteği gönderildiğinde (bekleme aşaması)
+        .addCase(signIn.pending, (state) => {
+            state.status = 'loading';     // işlem devam ediyor
+            state.error = null;           // hata temizleniyor
+        })
+        // Kullanıcı giriş başarılı olduğunda
+        .addCase(signIn.fulfilled, (state, action: PayloadAction<AppUser | null>) => {
+            state.status = 'succeeded';               // işlem başarılı
+            state.user = action.payload;              // backend’den gelen kullanıcı bilgisi state’e yazılır
+            state.isAuthenticated = !!action.payload; // kullanıcı varsa true, yoksa false
+        })
+        // Kullanıcı giriş başarısız olduğunda
+        .addCase(signIn.rejected, (state, action) => {
+            state.status = 'failed';                  // işlem başarısız
+            state.error = action.payload as string;   // hata mesajı saklanır
+            state.user = null;                        // kullanıcı bilgisi sıfırlanır
+            state.isAuthenticated = false;            // oturum kapalı
+        })
+
+        // Kullanıcı kayıt isteği gönderildiğinde
+        .addCase(signUp.pending, (state) => {
+            state.status = 'loading';     // işlem devam ediyor
+            state.error = null;           // hata temizleniyor
+        })
+        // Kullanıcı kayıt başarılı olduğunda
+        .addCase(signUp.fulfilled, (state, action: PayloadAction<AppUser | null>) => {
+            state.status = 'succeeded';               // işlem başarılı
+            state.user = action.payload;              // yeni kullanıcı bilgisi saklanır
+            state.isAuthenticated = !!action.payload; // kullanıcı varsa true
+        })
+        // Kullanıcı kayıt başarısız olduğunda
+        .addCase(signUp.rejected, (state, action) => {
+            state.status = 'failed';                  // işlem başarısız
+            state.error = action.payload as string;   // hata mesajı saklanır
+            state.user = null;                        // kullanıcı bilgisi sıfırlanır
+            state.isAuthenticated = false;            // oturum kapalı
+        })
+
+        // Kullanıcı çıkış isteği gönderildiğinde
+        .addCase(signOut.pending, (state) => {
+            state.status = 'loading';     // işlem devam ediyor
+        })
+        // Kullanıcı çıkış başarılı olduğunda
+        .addCase(signOut.fulfilled, (state) => {
+            state.status = 'succeeded';   // işlem başarılı
+            state.user = null;            // kullanıcı bilgisi sıfırlanır
+            state.isAuthenticated = false;// oturum kapalı
+        })
+        // Kullanıcı çıkış başarısız olduğunda
+        .addCase(signOut.rejected, (state, action) => {
+            state.status = 'failed';                  // işlem başarısız
+            state.error = action.payload as string;   // hata mesajı saklanır
+        });
+},
+
 });
 
 export const { setUser } = authSlice.actions;

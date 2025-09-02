@@ -23,16 +23,22 @@ const Comments: React.FC<CommentsProps> = ({ productId }) => {
 	const [currentUserProfile, setCurrentUserProfile] = useState<{ avatar_url?: string, full_name?: string } | null>(null);
 
 	// Load user profiles for avatars
+	// bu kısım sadece yorumlar varsa çalışır
 	useEffect(() => {
 		const loadUserProfiles = async () => {
 			if (comments.length > 0) {
+				// Bu satır commets dizisindeki her bir elemanı gezerek o yorumların user_id özelliğini alır.
+				// Eğer yoksa user_name özelliğini alır.Daha sonra Set ile sadece benzersiz olanları yani bir user birden fazla yorum yazdı ise 
+				// onun bir kez userIds e yazılır. Son olarak [... ]: bu ise spread(yayma) operator olarak bilinir ve Set içindeli değerleri yeni bir diziye dönüştürür.
 				const userIds = [...new Set(comments.map(c => c.user_id || c.user_name))];
 
+				// supabase den userıds deki userların ilgili verileri çekilir.
 				const { data } = await supabase
 					.from('profiles')
 					.select('full_name, avatar_url, id')
 					.in('id', userIds);
-
+				// Eğer veriler çekildiyse reduce fonk ile data dizisindeki 
+				// her bir elemanı işleyerek tek bir nesne olan profileMap oluşturur.
 				if (data) {
 					const profileMap = data.reduce((acc, profile) => {
 						acc[profile.id] = {
@@ -51,6 +57,7 @@ const Comments: React.FC<CommentsProps> = ({ productId }) => {
 	}, [comments]);
 
 	// Load current user profile
+	// Current user her zaman yüklenir.
 	useEffect(() => {
 		const loadCurrentUserProfile = async () => {
 			if (user?.id) {

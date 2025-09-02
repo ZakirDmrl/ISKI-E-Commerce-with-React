@@ -127,7 +127,7 @@ const AdminPage: React.FC = () => {
 			setLoadingProducts(false);
 			return;
 		}
-
+		// Bu kod bir ürün listesini (data) alıp, her ürüne stok bilgilerini ekleyerek yeni bir liste (productsWithStock) üretiyor.
 		const productsWithStock: ProductWithStock[] = (data || []).map(product => {
 			const inventory = Array.isArray(product.inventory) ? product.inventory[0] : product.inventory;
 			const availableStock = inventory ? inventory.quantity - inventory.reserved_quantity : 0;

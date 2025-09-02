@@ -17,9 +17,11 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
     // Stok durumu kontrolü
     const isOutOfStock = product.available_stock !== undefined && product.available_stock <= 0;
     const isLowStock = product.stock_status === 'LOW_STOCK';
-    
+    //
     const handleAddToCartClick = async (e: React.MouseEvent<HTMLButtonElement>) => {
+		// Butonun varsayılan davranışını engeller (örneğin, bir <form> içindeyse submit olmasını önler).
         e.preventDefault();
+		// Olayın parent componentlere taşmasını engeller. Yani sadece bu butonun tıklaması işlenir, üst komponentler tetiklenmez.
         e.stopPropagation();
         
         if (isOutOfStock) {
