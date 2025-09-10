@@ -1,8 +1,8 @@
 // src/pages/AddProductForm.tsx
 import React, { useState } from 'react';
 import { useDispatch } from 'react-redux';
-import { supabase } from '../supabaseClient';
 import { setNotification } from '../store/notificationSlice';
+import { apiClient } from '../config/api';
 
 const AddProductForm: React.FC = () => {
     const dispatch = useDispatch();
@@ -43,99 +43,43 @@ const AddProductForm: React.FC = () => {
         setMaxStockLevel('100'); setCostPrice('');
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setLoading(true);
+   // handleSubmit fonksiyonu tamamen backend API'ye çevrilmeli:
+const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
 
-        // Alan kontrolü
-        if (!title || !description || !price || !image || !category) {
-            dispatch(setNotification({ message: 'Lütfen tüm zorunlu alanları doldurun.', type: 'error' }));
-            setLoading(false);
-            return;
-        }
+    try {
+        const productData = {
+            title, 
+            description, 
+            price: parseFloat(price), 
+            image, 
+            category,
+            sku: sku || null,
+            rating: rating ? parseFloat(rating) : null,
+            rating_count: ratingCount ? parseInt(ratingCount) : null,
+            is_active: isActive,
+            // Stok bilgileri
+            initial_stock: parseInt(initialStock),
+            min_stock_level: parseInt(minStockLevel),
+            max_stock_level: parseInt(maxStockLevel),
+            cost_price: costPrice ? parseFloat(costPrice) : null
+        };
 
-        try {
-            // SKU benzersizlik kontrolü
-            if (sku) {
-                const { data: existingSku } = await supabase
-                    .from('products')
-                    .select('id')
-                    .eq('sku', sku)
-                    .single();
+        await apiClient.post('/products', productData);
 
-                if (existingSku) {
-                    dispatch(setNotification({ message: 'Bu SKU zaten kullanımda. Lütfen farklı bir SKU girin.', type: 'error' }));
-                    setLoading(false);
-                    return;
-                }
-            }
+        dispatch(setNotification({ message: 'Ürün ve stok bilgileri başarıyla eklendi!', type: 'success' }));
+        clearForm();
 
-            // Önce ürünü ekle
-            const { data: productData, error: productError } = await supabase
-                .from('products')
-                .insert([{ 
-                    title, 
-                    description, 
-                    price: parseFloat(price), 
-                    image, 
-                    category,
-                    sku: sku || null,
-                    rating: rating ? parseFloat(rating) : null,
-                    rating_count: ratingCount ? parseInt(ratingCount) : null,
-                    is_active: isActive
-                }])
-                .select()
-                .single();
+    } catch (error) {
+        dispatch(setNotification({ 
+            message: 'Ürün eklenirken bir hata oluştu: ' + error.response?.data?.error || error.message, 
+            type: 'error' 
+        }));
+    }
 
-            if (productError) {
-                throw new Error(productError.message);
-            }
-
-            // Ürün başarıyla eklendiyse stok kaydını oluştur
-            if (productData) {
-                const { error: inventoryError } = await supabase
-                    .from('inventory')
-                    .insert([{
-                        product_id: productData.id,
-                        quantity: parseInt(initialStock),
-                        reserved_quantity: 0,
-                        min_stock_level: parseInt(minStockLevel),
-                        max_stock_level: parseInt(maxStockLevel),
-                        cost_price: costPrice ? parseFloat(costPrice) : null
-                    }]);
-
-                if (inventoryError) {
-                    console.warn('Inventory kaydı oluşturulamadı:', inventoryError.message);
-                }
-
-                // İlk stok girişi için stok hareketi kaydet
-                if (parseInt(initialStock) > 0) {
-                    const { error: stockMovementError } = await supabase
-                        .from('stock_movements')
-                        .insert([{
-                            product_id: productData.id,
-                            movement_type: 'IN',
-                            quantity: parseInt(initialStock),
-                            reference_type: 'ADJUSTMENT',
-                            reason: 'Initial stock entry for new product',
-                            cost_price: costPrice ? parseFloat(costPrice) : null
-                        }]);
-
-                    if (stockMovementError) {
-                        console.warn('Stok hareketi kaydedilemedi:', stockMovementError.message);
-                    }
-                }
-            }
-
-            dispatch(setNotification({ message: 'Ürün ve stok bilgileri başarıyla eklendi!', type: 'success' }));
-            clearForm();
-
-        } catch (error) {
-            dispatch(setNotification({ message: 'Ürün eklenirken bir hata oluştu: ' + error.message, type: 'error' }));
-        }
-
-        setLoading(false);
-    };
+    setLoading(false);
+};
 
     return (
         <div className="add-product-form">

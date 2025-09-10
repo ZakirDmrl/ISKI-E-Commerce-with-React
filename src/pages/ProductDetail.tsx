@@ -2,196 +2,132 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { supabase } from '../supabaseClient';
-import type { ProductWithStock, StockStatus } from '../types';
+import type { ProductWithStock } from '../types';
 import type { RootState, AppDispatch } from '../store/store';
 import { addOrUpdateCartItem } from '../store/cartSlice';
 import { setNotification } from '../store/notificationSlice';
 import { checkProductStock } from '../store/productSlice';
 import Comments from '../components/Comments';
+import { apiClient } from '../config/api';
 
 const ProductDetail = () => {
-    const { productId } = useParams<{ productId: string }>();
-    const dispatch = useDispatch<AppDispatch>();
-    const { user, isAuthenticated } = useSelector((state: RootState) => state.auth);
-    
-    const [product, setProduct] = useState<ProductWithStock | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [addingToCart, setAddingToCart] = useState(false);
+	const { productId } = useParams<{ productId: string }>();
+	const dispatch = useDispatch<AppDispatch>();
+	const { user, isAuthenticated } = useSelector((state: RootState) => state.auth);
 
-    useEffect(() => {
-        const fetchProduct = async () => {
-            setLoading(true);
-            setError(null);
-            
-            const idAsNumber = Number(productId);
-            if (isNaN(idAsNumber)) {
-                setError('Geçersiz ürün kimliği.');
-                setLoading(false);
-                return;
-            }
-            
-            try {
-                const { data, error: supabaseError } = await supabase
-                    .from('products')
-                    .select(`
-                        *,
-                        inventory:inventory(
-                            id,
-                            quantity,
-                            reserved_quantity,
-                            min_stock_level,
-                            max_stock_level,
-                            cost_price,
-                            updated_at
-                        )
-                    `)
-                    .eq('id', idAsNumber)
-                    .single();
+	const [product, setProduct] = useState<ProductWithStock | null>(null);
+	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState<string | null>(null);
+	const [addingToCart, setAddingToCart] = useState(false);
 
-                if (supabaseError) {
-                    throw new Error(supabaseError.message);
-                }
+	useEffect(() => {
+		const fetchProduct = async () => {
+			setLoading(true);
+			setError(null);
 
-                if (!data) {
-                    throw new Error('Ürün bulunamadı.');
-                }
+			try {
+				const response = await apiClient.get(`/products/${productId}`);
+				setProduct(response.data.product);
+			} catch (err) {
+				setError(err.response?.data?.error || 'Ürün bulunamadı');
+			} finally {
+				setLoading(false);
+			}
+		};
 
-                // Stok bilgilerini hesapla
-                const inventory = Array.isArray(data.inventory) ? data.inventory[0] : data.inventory;
-                const availableStock = inventory ? inventory.quantity - inventory.reserved_quantity : 0;
-                
-                let stockStatus: StockStatus = 'IN_STOCK';
-                if (availableStock <= 0) {
-                    stockStatus = 'OUT_OF_STOCK';
-                } else if (inventory && availableStock <= inventory.min_stock_level) {
-                    stockStatus = 'LOW_STOCK';
-                }
+		if (productId) {
+			fetchProduct();
+		}
+	}, [productId]);
 
-                const productWithStock: ProductWithStock = {
-                    ...data,
-                    inventory,
-                    available_stock: availableStock,
-                    stock_status: stockStatus
-                };
-                
-                setProduct(productWithStock);
-            } catch (err) {
-                setError(err.message);
-            } finally {
-                setLoading(false);
-            }
-        };
+	const handleAddToCart = async () => {
+		if (!isAuthenticated || !user) {
+			dispatch(setNotification({ message: 'Sepete ürün eklemek için giriş yapmalısınız.', type: 'error' }));
+			return;
+		}
 
-        if (productId) {
-            fetchProduct();
-        }
-    }, [productId]);
+		if (!product) return;
 
-    const handleAddToCart = async () => {
-        if (!isAuthenticated || !user) {
-            dispatch(setNotification({ message: 'Sepete ürün eklemek için giriş yapmalısınız.', type: 'error' }));
-            return;
-        }
+		// Stokta yoksa işlemi durdur
+		if (product.stock_status === 'OUT_OF_STOCK') {
+			dispatch(setNotification({ message: 'Bu ürün şu anda stokta bulunmuyor.', type: 'error' }));
+			return;
+		}
 
-        if (!product) return;
+		setAddingToCart(true);
 
-        // Stokta yoksa işlemi durdur
-        if (product.stock_status === 'OUT_OF_STOCK') {
-            dispatch(setNotification({ message: 'Bu ürün şu anda stokta bulunmuyor.', type: 'error' }));
-            return;
-        }
+		try {
+			// Stok durumunu kontrol et
+			await dispatch(checkProductStock({
+				productId: product.id,
+				quantity: 1
+			})).unwrap();
 
-        setAddingToCart(true);
-        
-        try {
-            // Stok durumunu kontrol et
-            await dispatch(checkProductStock({ 
-                productId: product.id, 
-                quantity: 1 
-            })).unwrap();
+			// Stok kontrolü başarılıysa sepete ekle
+			await dispatch(addOrUpdateCartItem({ product, userId: user.id })).unwrap();
 
-            // Stok kontrolü başarılıysa sepete ekle
-            await dispatch(addOrUpdateCartItem({ product, userId: user.id })).unwrap();
-            
-            dispatch(setNotification({ 
-                message: `${product.title} sepete eklendi!`, 
-                type: 'success' 
-            }));
+			dispatch(setNotification({
+				message: `${product.title} sepete eklendi!`,
+				type: 'success'
+			}));
 
-            // Stok bilgilerini yenile
-            const { data } = await supabase
-                .from('products')
-                .select('*, inventory:inventory(*)')
-                .eq('id', product.id)
-                .single();
 
-            if (data) {
-                const inventory = Array.isArray(data.inventory) ? data.inventory[0] : data.inventory;
-                const availableStock = inventory ? inventory.quantity - inventory.reserved_quantity : 0;
-                
-                setProduct(prev => prev ? {
-                    ...prev,
-                    inventory,
-                    available_stock: availableStock
-                } : null);
-            }
 
-        } catch (err) {
-            dispatch(setNotification({ 
-                message: `Sepete eklenirken hata oluştu: ${err.message}`, 
-                type: 'error' 
-            }));
-        } finally {
-            setAddingToCart(false);
-        }
-    };
 
-    const getStockStatusDisplay = () => {
-        if (!product || product.available_stock === undefined) return null;
+		} catch (err) {
+			dispatch(setNotification({
+				message: `Sepete eklenirken hata oluştu: ${err.message}`,
+				type: 'error'
+			}));
+		} finally {
+			setAddingToCart(false);
+		}
+	};
 
-        const isOutOfStock = product.stock_status === 'OUT_OF_STOCK';
-        const isLowStock = product.stock_status === 'LOW_STOCK';
+	const getStockStatusDisplay = () => {
+		if (!product || product.available_stock === undefined) return null;
 
-        return (
-            <div className={`stock-status ${isOutOfStock ? 'out-of-stock' : isLowStock ? 'low-stock' : 'in-stock'}`}>
-                <div className="stock-header">
-                    <span className="stock-icon">
-                        {isOutOfStock ? '❌' : isLowStock ? '⚠️' : '✅'}
-                    </span>
-                    <span className="stock-text">
-                        {isOutOfStock 
-                            ? 'Stokta Yok' 
-                            : isLowStock 
-                                ? `Az Stok Kaldı (${product.available_stock} adet)`
-                                : `Stokta Var (${product.available_stock} adet)`}
-                    </span>
-                </div>
-                
-                {product.inventory?.reserved_quantity > 0 && (
-                    <div className="reserved-info">
-                        Rezerve edilmiş: {product.inventory.reserved_quantity} adet
-                    </div>
-                )}
+		const isOutOfStock = product.stock_status === 'OUT_OF_STOCK';
+		const isLowStock = product.stock_status === 'LOW_STOCK';
 
-                {product.sku && (
-                    <div className="sku-info">
-                        SKU: <code className="sku-code">{product.sku}</code>
-                    </div>
-                )}
-            </div>
-        );
-    };
+		return (
+			<div className={`stock-status ${isOutOfStock ? 'out-of-stock' : isLowStock ? 'low-stock' : 'in-stock'}`}>
+				<div className="stock-header">
+					<span className="stock-icon">
+						{isOutOfStock ? '❌' : isLowStock ? '⚠️' : '✅'}
+					</span>
+					<span className="stock-text">
+						{isOutOfStock
+							? 'Stokta Yok'
+							: isLowStock
+								? `Az Stok Kaldı (${product.available_stock} adet)`
+								: `Stokta Var (${product.available_stock} adet)`}
+					</span>
+				</div>
 
-    if (loading) {
-        return (
-            <div className="loading-container">
-                <div className="loading-content">
-                    <div className="loading-spinner"></div>
-                    <p>Ürün detayları yükleniyor...</p>
-                </div>
-                <style>{`
+				{product.inventory?.reserved_quantity > 0 && (
+					<div className="reserved-info">
+						Rezerve edilmiş: {product.inventory.reserved_quantity} adet
+					</div>
+				)}
+
+				{product.sku && (
+					<div className="sku-info">
+						SKU: <code className="sku-code">{product.sku}</code>
+					</div>
+				)}
+			</div>
+		);
+	};
+
+	if (loading) {
+		return (
+			<div className="loading-container">
+				<div className="loading-content">
+					<div className="loading-spinner"></div>
+					<p>Ürün detayları yükleniyor...</p>
+				</div>
+				<style>{`
                     .loading-container {
                         display: flex;
                         justify-content: center;
@@ -220,112 +156,112 @@ const ProductDetail = () => {
                         margin: 0;
                     }
                 `}</style>
-            </div>
-        );
-    }
+			</div>
+		);
+	}
 
-    if (error) {
-        return (
-            <div className="error-state">
-                <div className="error-icon">⚠️</div>
-                <h3 className="error-title">Hata</h3>
-                <p className="error-message">{error}</p>
-            </div>
-        );
-    }
+	if (error) {
+		return (
+			<div className="error-state">
+				<div className="error-icon">⚠️</div>
+				<h3 className="error-title">Hata</h3>
+				<p className="error-message">{error}</p>
+			</div>
+		);
+	}
 
-    if (!product) {
-        return (
-            <div className="not-found-state">
-                <div className="not-found-icon">🔍</div>
-                <h3 className="not-found-title">Ürün Bulunamadı</h3>
-            </div>
-        );
-    }
+	if (!product) {
+		return (
+			<div className="not-found-state">
+				<div className="not-found-icon">🔍</div>
+				<h3 className="not-found-title">Ürün Bulunamadı</h3>
+			</div>
+		);
+	}
 
-    const isOutOfStock = product.stock_status === 'OUT_OF_STOCK';
+	const isOutOfStock = product.stock_status === 'OUT_OF_STOCK';
 
-    return (
-        <div className="product-detail-page">
-            {/* Ana Container - İki kolon layout */}
-            <div className="product-layout-container">
-                
-                {/* Sol Taraf - Product Detail Card (Sabit) */}
-                <div className="product-detail-section">
-                    <div className="product-detail-card">
-                        <div className="product-content">
-                            {/* Product Image */}
-                            <div className="product-image-section">
-                                <div className="image-container">
-                                    <img 
-                                        src={product.image} 
-                                        alt={product.title} 
-                                        className={`product-image ${isOutOfStock ? 'out-of-stock' : ''}`}
-                                    />
-                                    {isOutOfStock && (
-                                        <div className="out-of-stock-badge">
-                                            STOKTA YOK
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                            
-                            {/* Product Info */}
-                            <div className="product-info-section">
-                                <div className="category-badge">
-                                    {product.category}
-                                </div>
-                                
-                                <h1 className="product-title">
-                                    {product.title}
-                                </h1>
-                                
-                                <div className="product-description">
-                                    <p>{product.description}</p>
-                                </div>
-                                
-                                {product.rating && product.rating > 0 && (
-                                    <div className="product-rating">
-                                        <div className="rating-stars">
-                                            {Array(Math.round(product.rating)).fill('⭐').join('')}
-                                        </div>
-                                        <span className="rating-text">
-                                            {product.rating.toFixed(1)} ({product.rating_count || 0} değerlendirme)
-                                        </span>
-                                    </div>
-                                )}
+	return (
+		<div className="product-detail-page">
+			{/* Ana Container - İki kolon layout */}
+			<div className="product-layout-container">
 
-                                {/* Stok Durumu */}
-                                {getStockStatusDisplay()}
-                                
-                                <div className="product-price">
-                                    {typeof product.price === 'number' ? product.price.toFixed(2) : product.price} TL
-                                </div>
-                                
-                                <button 
-                                    onClick={handleAddToCart}
-                                    disabled={isOutOfStock || addingToCart}
-                                    className={`add-to-cart-btn ${isOutOfStock ? 'disabled' : ''} ${addingToCart ? 'loading' : ''}`}
-                                >
-                                    {addingToCart 
-                                        ? '🔄 Ekleniyor...' 
-                                        : isOutOfStock 
-                                            ? '❌ Stokta Yok' 
-                                            : '🛒 Sepete Ekle'}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+				{/* Sol Taraf - Product Detail Card (Sabit) */}
+				<div className="product-detail-section">
+					<div className="product-detail-card">
+						<div className="product-content">
+							{/* Product Image */}
+							<div className="product-image-section">
+								<div className="image-container">
+									<img
+										src={product.image}
+										alt={product.title}
+										className={`product-image ${isOutOfStock ? 'out-of-stock' : ''}`}
+									/>
+									{isOutOfStock && (
+										<div className="out-of-stock-badge">
+											STOKTA YOK
+										</div>
+									)}
+								</div>
+							</div>
 
-                {/* Sağ Taraf - Comments Section (Scrollable) */}
-                <div className="comments-section-container">
-                    {product && <Comments productId={product.id} />}
-                </div>
+							{/* Product Info */}
+							<div className="product-info-section">
+								<div className="category-badge">
+									{product.category}
+								</div>
 
-            </div>
+								<h1 className="product-title">
+									{product.title}
+								</h1>
 
-            <style>{`
+								<div className="product-description">
+									<p>{product.description}</p>
+								</div>
+
+								{product.rating && product.rating > 0 && (
+									<div className="product-rating">
+										<div className="rating-stars">
+											{Array(Math.round(product.rating)).fill('⭐').join('')}
+										</div>
+										<span className="rating-text">
+											{product.rating.toFixed(1)} ({product.rating_count || 0} değerlendirme)
+										</span>
+									</div>
+								)}
+
+								{/* Stok Durumu */}
+								{getStockStatusDisplay()}
+
+								<div className="product-price">
+									{typeof product.price === 'number' ? product.price.toFixed(2) : product.price} TL
+								</div>
+
+								<button
+									onClick={handleAddToCart}
+									disabled={isOutOfStock || addingToCart}
+									className={`add-to-cart-btn ${isOutOfStock ? 'disabled' : ''} ${addingToCart ? 'loading' : ''}`}
+								>
+									{addingToCart
+										? '🔄 Ekleniyor...'
+										: isOutOfStock
+											? '❌ Stokta Yok'
+											: '🛒 Sepete Ekle'}
+								</button>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				{/* Sağ Taraf - Comments Section (Scrollable) */}
+				<div className="comments-section-container">
+					{product && <Comments productId={product.id} />}
+				</div>
+
+			</div>
+
+			<style>{`
                 .product-detail-page {
                     width: 100%;
                     min-height: calc(100vh - 120px);
@@ -753,8 +689,8 @@ const ProductDetail = () => {
                     }
                 }
             `}</style>
-        </div>
-    );
+		</div>
+	);
 };
 
 export default ProductDetail;

@@ -7,31 +7,25 @@ import CartPage from './pages/CartPage';
 import ProfilePage from './pages/ProfilePage';
 import Navbar from './components/Navbar';
 import Notification from './components/Notification';
-import { supabase } from './supabaseClient';
-import { setUser, type AppUser } from './store/authSlice';
 import ProductDetail from './pages/ProductDetail';
 import AuthPage from './pages/AuthPage';
 import PrivateRoute from './components/PrivateRoute';
 import AdminPage from './pages/AdminPage';
 import { clearNotification } from './store/notificationSlice';
-import type { RootState } from './store/store';
+import type { AppDispatch, RootState } from './store/store';
 import CheckoutPage from './pages/CheckoutPage';
+import { getCurrentUser } from './store/authSlice';
 
 const App: React.FC = () => {
-    const dispatch = useDispatch();
+    const dispatch = useDispatch<AppDispatch>(); // AppDispatch type'ını ekle
     const notification = useSelector((state: RootState) => state.notification);
     
     // Kullanıcı kimlik doğrulama mantığı
-    useEffect(() => {
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            let user: AppUser | null = null;
-            if (session?.user) {
-                const isAdmin = session.user.app_metadata.is_admin === true;
-                user = { ...session.user, isAdmin } as AppUser;
-            }
-            dispatch(setUser(user));
-        });
-        return () => subscription.unsubscribe();
+   useEffect(() => {
+        const token = localStorage.getItem('supabase.auth.token');
+        if (token) {
+            dispatch(getCurrentUser());
+        }
     }, [dispatch]);
 
     // Bildirim yönetimi

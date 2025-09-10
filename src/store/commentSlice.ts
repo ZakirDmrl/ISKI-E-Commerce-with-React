@@ -1,6 +1,6 @@
-// src/store/commentSlice.ts
+// src/store/commentSlice.ts - TAM MİGRASYON
 import { createAsyncThunk, createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import { supabase } from '../supabaseClient';
+import { apiClient } from '../config/api'; // Supabase yerine axios
 import type { Comment } from '../types';
 
 interface CommentState {
@@ -15,148 +15,58 @@ const initialState: CommentState = {
     error: null,
 };
 
-// Ürüne ait yorumları ve beğenileri çekme
+// ESKI: Supabase complex query
+// YENI: Basit HTTP GET isteği
 export const fetchComments = createAsyncThunk<Comment[], { productId: number, userId: string | null }>(
     'comments/fetchComments',
     async ({ productId, userId }, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
-                .from('comments')
-                .select(`
-                    *,
-                    profiles!comments_user_id_fkey(
-                        full_name,
-                        email,
-                        username
-                    ),
-                    comment_likes!left(user_id)
-                `)
-                .eq('product_id', productId)
-                .order('created_at', { ascending: false });
-
-            if (error) {
-                console.error('Supabase error:', error);
-                throw new Error(error.message);
-            }
-
-            const formattedComments: Comment[] = (data as any[]).map(comment => {
-                const userLiked = comment.comment_likes.some((like ) => like.user_id === userId);
-                const likesCount = comment.comment_likes.length;
-
-                return {
-                    ...comment,
-                    user_name: comment.profiles?.full_name || 
-                                comment.profiles?.username || 
-                                comment.profiles?.email?.split('@')[0] || 
-                                'Anonim',
-                    user_email: comment.profiles?.email,
-                    likes: likesCount,
-                    user_liked: userLiked,
-                };
-            });
-
-            return formattedComments;
-        } catch (error ) {
-            console.error('fetchComments error:', error);
-            return rejectWithValue(error.message || 'Yorumlar yüklenirken hata oluştu');
+            // Go backend tek istekle formatted data dönüyor
+            const params = userId ? `?user_id=${userId}` : '';
+            const response = await apiClient.get(`/comments/product/${productId}${params}`);
+            
+            return response.data.comments;
+        } catch (error) {
+            return rejectWithValue(
+                error.response?.data?.error || 'Yorumlar yüklenirken hata oluştu'
+            );
         }
     }
 );
 
-// Yeni yorum ekleme
+// ESKI: Supabase insert + profile fetch
+// YENI: Tek HTTP POST isteği
 export const addComment = createAsyncThunk<Comment, { productId: number, userId: string, content: string, parentId: number | null }>(
     'comments/addComment',
-    async ({ productId, userId, content, parentId }, { rejectWithValue }) => {
+    async ({ productId, content, parentId }, { rejectWithValue }) => {
         try {
-            console.log('Adding comment with data:', { productId, userId, content, parentId });
+            const response = await apiClient.post('/comments', {
+                product_id: productId,
+                content: content,
+                parent_id: parentId
+            });
 
-            // Önce yorumu ekle
-            const { data: commentData, error: insertError } = await supabase
-                .from('comments')
-                .insert({
-                    product_id: productId,
-                    user_id: userId,
-                    content,
-                    parent_comment_id: parentId,
-                })
-                .select()
-                .single();
-
-            if (insertError) {
-                console.error('Insert error:', insertError);
-                throw new Error(insertError.message);
-            }
-
-            console.log('Comment inserted:', commentData);
-
-            // Sonra kullanıcı bilgilerini al
-            const { data: profileData, error: profileError } = await supabase
-                .from('profiles')
-                .select('full_name, email, username')
-                .eq('id', userId)
-                .single();
-
-            if (profileError) {
-                console.error('Profile error:', profileError);
-            }
-
-            console.log('Profile data:', profileData);
-
-            const formattedComment: Comment = {
-                ...commentData,
-                user_name: profileData?.full_name || 
-                          profileData?.username || 
-                          profileData?.email?.split('@')[0] || 
-                          'Anonim',
-                user_email: profileData?.email,
-                likes: 0,
-            };
-
-            return formattedComment;
-        } catch (error ) {
-            console.error('addComment error:', error);
-            return rejectWithValue(error.message || 'Yorum eklenirken hata oluştu');
+            return response.data;
+        } catch (error) {
+            return rejectWithValue(
+                error.response?.data?.error || 'Yorum eklenirken hata oluştu'
+            );
         }
     }
 );
 
-// Yorumu beğenme/beğenmekten vazgeçme
+// ESKI: Supabase select + conditional insert/delete
+// YENI: Tek HTTP POST isteği (backend'de toggle logic)
 export const toggleLike = createAsyncThunk<void, { commentId: number, userId: string }>(
     'comments/toggleLike',
-    async ({ commentId, userId }, { rejectWithValue }) => {
+    async ({ commentId}, { rejectWithValue }) => {
         try {
-            const { data: existingLike, error: likeError } = await supabase
-                .from('comment_likes')
-                .select('id')
-                .eq('comment_id', commentId)
-                .eq('user_id', userId)
-                .maybeSingle();
-
-            if (likeError && likeError.code !== 'PGRST116') {
-                throw new Error(likeError.message);
-            }
-
-            if (existingLike) {
-                // Beğeniyi kaldır
-                const { error } = await supabase
-                    .from('comment_likes')
-                    .delete()
-                    .eq('id', existingLike.id);
-                
-                if (error) throw new Error(error.message);
-            } else {
-                // Beğeni ekle
-                const { error } = await supabase
-                    .from('comment_likes')
-                    .insert({ 
-                        comment_id: commentId, 
-                        user_id: userId 
-                    });
-                
-                if (error) throw new Error(error.message);
-            }
-        } catch (error ) {
-            return rejectWithValue(error.message || 'Beğenme işlemi sırasında hata oluştu');
+            await apiClient.post(`/comments/${commentId}/toggle-like`);
+            // Backend toggle yaptığı için response'a gerek yok
+        } catch (error) {
+            return rejectWithValue(
+                error.response?.data?.error || 'Beğenme işlemi sırasında hata oluştu'
+            );
         }
     }
 );
@@ -195,6 +105,12 @@ const commentSlice = createSlice({
             })
             .addCase(addComment.rejected, (state, action) => {
                 state.error = action.payload as string;
+            })
+            .addCase(toggleLike.fulfilled, (state) => {
+                // toggleLike başarılı olduğunda comments'ları yeniden fetch etmek gerekebilir
+                // veya optimistic update yapılabilir
+				state.error = null;
+				
             })
             .addCase(toggleLike.rejected, (state, action) => {
                 state.error = action.payload as string;

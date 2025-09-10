@@ -1,15 +1,13 @@
-// src/store/authSlice.ts
+// src/store/authSlice.ts - TAM MİGRASYON
 import { createAsyncThunk, createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import { supabase } from '../supabaseClient';
+import { apiClient } from '../config/api'; // Supabase yerine axios
 import type { User } from '@supabase/supabase-js';
 
-// Geliştirilmiş User tipi, isAdmin ve avatarUrl özelliklerini içerir
 export interface AppUser extends User {
     isAdmin: boolean;
     avatarUrl: string | null;
 }
 
-// Auth State'inin tipini tanımla
 interface AuthState {
     user: AppUser | null;
     isAuthenticated: boolean;
@@ -24,73 +22,73 @@ const initialState: AuthState = {
     error: null,
 };
 
-// Yardımcı fonksiyon: Kullanıcı bilgilerini ve profilini birleştirir
-const fetchUserProfile = async (user: User) => {
-    const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('is_admin, avatar_url')
-        .eq('id', user.id)
-        .single();
-
-    if (profileError) {
-        console.error('Profil bilgisi çekilirken hata oluştu:', profileError);
-        return {
-            ...user,
-            isAdmin: false,
-            avatarUrl: null,
-        } as AppUser;
-    }
-
-    return {
-        ...user,
-        isAdmin: profileData.is_admin,
-        avatarUrl: profileData.avatar_url,
-    } as AppUser;
-};
-
-// Asenkron Thunk ile giriş yapma işlemi
+// ESKI: Supabase auth.signInWithPassword + profile fetch
+// YENI: HTTP POST /auth/signin
 export const signIn = createAsyncThunk(
     'auth/signIn',
     async ({ email, password }: Record<string, string>, { rejectWithValue }) => {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) {
-            return rejectWithValue(error.message);
+        try {
+            const response = await apiClient.post('/auth/signin', { email, password });
+            
+            // Token'ı localStorage'a kaydet
+            if (response.data.session?.access_token) {
+                localStorage.setItem('supabase.auth.token', response.data.session.access_token);
+            }
+            
+            return response.data.user;
+        } catch (error) {
+            return rejectWithValue(
+                error.response?.data?.error || 'Giriş başarısız'
+            );
         }
-        if (!data.user) {
-            return rejectWithValue('Giriş işlemi başarısız. Kullanıcı bulunamadı.');
-        }
-
-        // Kullanıcı giriş yaptığında profili çek
-        return await fetchUserProfile(data.user);
     }
 );
 
-// Asenkron Thunk ile kayıt olma işlemi
+// ESKI: Supabase auth.signUp + profile fetch
+// YENI: HTTP POST /auth/signup
 export const signUp = createAsyncThunk(
     'auth/signUp',
     async ({ email, password }: Record<string, string>, { rejectWithValue }) => {
-        const { data, error } = await supabase.auth.signUp({ email, password });
-        if (error) {
-            return rejectWithValue(error.message);
+        try {
+            const response = await apiClient.post('/auth/signup', { email, password });
+            return response.data.user;
+        } catch (error) {
+            return rejectWithValue(
+                error.response?.data?.error || 'Kayıt başarısız'
+            );
         }
-        if (!data.user) {
-            return rejectWithValue('Kayıt işlemi başarısız. Kullanıcı bulunamadı.');
-        }
-        
-        // Kullanıcı kayıt olduğunda profili çek
-        return await fetchUserProfile(data.user);
     }
 );
 
-// Asenkron Thunk ile çıkış yapma işlemi
+// ESKI: Supabase auth.signOut
+// YENI: HTTP POST /auth/signout
 export const signOut = createAsyncThunk(
     'auth/signOut',
     async (_, { rejectWithValue }) => {
-        const { error } = await supabase.auth.signOut();
-        if (error) {
-            return rejectWithValue(error.message);
+        try {
+            await apiClient.post('/auth/signout');
+            localStorage.removeItem('supabase.auth.token');
+            return null;
+        } catch (error) {
+            return rejectWithValue(
+                error.response?.data?.error || 'Çıkış başarısız'
+            );
         }
-        return null;
+    }
+);
+
+// YENI: Kullanıcı bilgilerini al
+export const getCurrentUser = createAsyncThunk(
+    'auth/getCurrentUser',
+    async (_, { rejectWithValue }) => {
+        try {
+            const response = await apiClient.get('/auth/me');
+            return response.data.user;
+        } catch (error) {
+            return rejectWithValue(
+                error.response?.data?.error || 'Kullanıcı bilgisi alınamadı'
+            );
+        }
     }
 );
 
@@ -103,66 +101,76 @@ const authSlice = createSlice({
             state.isAuthenticated = !!action.payload;
             state.status = 'succeeded';
         },
+        logout: (state) => {
+            state.user = null;
+            state.isAuthenticated = false;
+            state.status = 'idle';
+            localStorage.removeItem('supabase.auth.token');
+        },
     },
-extraReducers: (builder) => {
-    builder
-        // Kullanıcı giriş isteği gönderildiğinde (bekleme aşaması)
-        .addCase(signIn.pending, (state) => {
-            state.status = 'loading';     // işlem devam ediyor
-            state.error = null;           // hata temizleniyor
-        })
-        // Kullanıcı giriş başarılı olduğunda
-        .addCase(signIn.fulfilled, (state, action: PayloadAction<AppUser | null>) => {
-            state.status = 'succeeded';               // işlem başarılı
-            state.user = action.payload;              // backend’den gelen kullanıcı bilgisi state’e yazılır
-            state.isAuthenticated = !!action.payload; // kullanıcı varsa true, yoksa false
-        })
-        // Kullanıcı giriş başarısız olduğunda
-        .addCase(signIn.rejected, (state, action) => {
-            state.status = 'failed';                  // işlem başarısız
-            state.error = action.payload as string;   // hata mesajı saklanır
-            state.user = null;                        // kullanıcı bilgisi sıfırlanır
-            state.isAuthenticated = false;            // oturum kapalı
-        })
+    extraReducers: (builder) => {
+        builder
+            // signIn
+            .addCase(signIn.pending, (state) => {
+                state.status = 'loading';
+                state.error = null;
+            })
+            .addCase(signIn.fulfilled, (state, action: PayloadAction<AppUser | null>) => {
+                state.status = 'succeeded';
+                state.user = action.payload;
+                state.isAuthenticated = !!action.payload;
+            })
+            .addCase(signIn.rejected, (state, action) => {
+                state.status = 'failed';
+                state.error = action.payload as string;
+                state.user = null;
+                state.isAuthenticated = false;
+            })
 
-        // Kullanıcı kayıt isteği gönderildiğinde
-        .addCase(signUp.pending, (state) => {
-            state.status = 'loading';     // işlem devam ediyor
-            state.error = null;           // hata temizleniyor
-        })
-        // Kullanıcı kayıt başarılı olduğunda
-        .addCase(signUp.fulfilled, (state, action: PayloadAction<AppUser | null>) => {
-            state.status = 'succeeded';               // işlem başarılı
-            state.user = action.payload;              // yeni kullanıcı bilgisi saklanır
-            state.isAuthenticated = !!action.payload; // kullanıcı varsa true
-        })
-        // Kullanıcı kayıt başarısız olduğunda
-        .addCase(signUp.rejected, (state, action) => {
-            state.status = 'failed';                  // işlem başarısız
-            state.error = action.payload as string;   // hata mesajı saklanır
-            state.user = null;                        // kullanıcı bilgisi sıfırlanır
-            state.isAuthenticated = false;            // oturum kapalı
-        })
+            // signUp
+            .addCase(signUp.pending, (state) => {
+                state.status = 'loading';
+                state.error = null;
+            })
+            .addCase(signUp.fulfilled, (state, action: PayloadAction<AppUser | null>) => {
+                state.status = 'succeeded';
+                state.user = action.payload;
+                state.isAuthenticated = !!action.payload;
+            })
+            .addCase(signUp.rejected, (state, action) => {
+                state.status = 'failed';
+                state.error = action.payload as string;
+                state.user = null;
+                state.isAuthenticated = false;
+            })
 
-        // Kullanıcı çıkış isteği gönderildiğinde
-        .addCase(signOut.pending, (state) => {
-            state.status = 'loading';     // işlem devam ediyor
-        })
-        // Kullanıcı çıkış başarılı olduğunda
-        .addCase(signOut.fulfilled, (state) => {
-            state.status = 'succeeded';   // işlem başarılı
-            state.user = null;            // kullanıcı bilgisi sıfırlanır
-            state.isAuthenticated = false;// oturum kapalı
-        })
-        // Kullanıcı çıkış başarısız olduğunda
-        .addCase(signOut.rejected, (state, action) => {
-            state.status = 'failed';                  // işlem başarısız
-            state.error = action.payload as string;   // hata mesajı saklanır
-        });
-},
+            // signOut
+            .addCase(signOut.pending, (state) => {
+                state.status = 'loading';
+            })
+            .addCase(signOut.fulfilled, (state) => {
+                state.status = 'succeeded';
+                state.user = null;
+                state.isAuthenticated = false;
+            })
+            .addCase(signOut.rejected, (state, action) => {
+                state.status = 'failed';
+                state.error = action.payload as string;
+            })
 
+            // getCurrentUser
+            .addCase(getCurrentUser.fulfilled, (state, action) => {
+                state.user = action.payload;
+                state.isAuthenticated = !!action.payload;
+                state.status = 'succeeded';
+            })
+            .addCase(getCurrentUser.rejected, (state) => {
+                state.user = null;
+                state.isAuthenticated = false;
+                state.status = 'failed';
+            });
+    },
 });
 
-export const { setUser } = authSlice.actions;
-
+export const { setUser, logout } = authSlice.actions;
 export default authSlice.reducer;

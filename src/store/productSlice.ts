@@ -1,6 +1,9 @@
-// src/store/productSlice.ts
+// ========================================
+// src/store/productSlice.ts - TAM MİGRASYON
+// ========================================
+
 import { createAsyncThunk, createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import { supabase } from '../supabaseClient';
+import { apiClient } from '../config/api'; // Supabase yerine axios
 import type { ProductWithStock, StockStatus } from '../types';
 
 interface ProductState {
@@ -29,8 +32,8 @@ const initialState: ProductState = {
     lowStockCount: 0,
 };
 
-// Stok bilgisi ile birlikte ürünleri çek
-// createAsyncThunk Redux’ta asenkron işlemleri (API çağrısı, veri çekme, kaydetme vb.) yönetmek için kullanılır.
+// ESKI: Supabase complex query with JOIN + range + filtering
+// YENI: HTTP GET /products with query params
 export const fetchProducts = createAsyncThunk<
     ProductWithStock[], 
     { page: number, limit: number, searchTerm: string, category: string | null, stockFilter: StockStatus | null }
@@ -38,75 +41,27 @@ export const fetchProducts = createAsyncThunk<
     'products/fetchProducts',
     async ({ page, limit, searchTerm, category, stockFilter }, { rejectWithValue }) => {
         try {
-            const start = (page - 1) * limit;
-            const end = start + limit - 1;
-            
-            // Ürünleri stok bilgisi ile birlikte çek
-            let query = supabase
-                .from('products')
-                .select(`
-                    *,
-                    inventory:inventory(
-                        id,
-                        quantity,
-                        reserved_quantity,
-                        min_stock_level,
-                        max_stock_level,
-                        cost_price,
-                        updated_at
-                    )
-                `)
-                .eq('is_active', true);
-
-            // Arama terimi filtresi
-            if (searchTerm) {
-                query = query.ilike('title', `%${searchTerm}%`);
-            }
-
-            // Kategori filtresi
-            if (category) {
-                query = query.eq('category', category);
-            }
-
-            const { data, error } = await query.range(start, end);
-
-            if (error) {
-                throw new Error(error.message);
-            }
-
-            // Stok durumunu hesapla ve filtrele
-            const productsWithStock: ProductWithStock[] = (data || []).map(product => {
-                const inventory = Array.isArray(product.inventory) ? product.inventory[0] : product.inventory;
-                const availableStock = inventory ? inventory.quantity - inventory.reserved_quantity : 0;
-                
-                let stockStatus: StockStatus = 'IN_STOCK';
-                if (availableStock <= 0) {
-                    stockStatus = 'OUT_OF_STOCK';
-                } else if (inventory && availableStock <= inventory.min_stock_level) {
-                    stockStatus = 'LOW_STOCK';
-                }
-
-                return {
-                    ...product,
-                    inventory,
-                    available_stock: availableStock,
-                    stock_status: stockStatus
-                };
+            const params = new URLSearchParams({
+                page: page.toString(),
+                limit: limit.toString(),
             });
+            
+            if (searchTerm) params.append('search', searchTerm);
+            if (category) params.append('category', category);
+            if (stockFilter) params.append('stock_filter', stockFilter);
 
-            // Stok durumu filtresi uygula
-            const filteredProducts = stockFilter 
-                ? productsWithStock.filter(p => p.stock_status === stockFilter)
-                : productsWithStock;
-
-            return filteredProducts;
+            const response = await apiClient.get(`/products?${params}`);
+            return response.data.products;
         } catch (error) {
-            return rejectWithValue(error.message);
+            return rejectWithValue(
+                error.response?.data?.error || 'Ürünler alınamadı'
+            );
         }
     }
 );
 
-// Toplam ürün sayısını çek (stok filtresi ile)
+// ESKI: Supabase count query + complex filtering
+// YENI: HTTP GET /products/count
 export const fetchTotalProductsCount = createAsyncThunk<
     number, 
     { searchTerm: string, category: string | null, stockFilter: StockStatus | null }
@@ -114,99 +69,55 @@ export const fetchTotalProductsCount = createAsyncThunk<
     'products/fetchTotalProductsCount',
     async ({ searchTerm, category, stockFilter }, { rejectWithValue }) => {
         try {
-            let query = supabase
-                .from('products')
-                .select('*, inventory:inventory(*)', { count: 'exact', head: true })
-                .eq('is_active', true);
-            
-            if (searchTerm) {
-                query = query.ilike('title', `%${searchTerm}%`);
-            }
-            if (category) {
-                query = query.eq('category', category);
-            }
+            const params = new URLSearchParams();
+            if (searchTerm) params.append('search', searchTerm);
+            if (category) params.append('category', category);
+            if (stockFilter) params.append('stock_filter', stockFilter);
 
-            const { count, error } = await query;
-
-            if (error) {
-                throw new Error(error.message);
-            }
-
-            // Stok filtresi varsa, gerçek sayıyı hesaplamak için tüm veriyi çekip filtrelemeliyiz
-            if (stockFilter) {
-                const { data: allData } = await supabase
-                    .from('products')
-                    .select('*, inventory:inventory(*)')
-                    .eq('is_active', true);
-
-                if (!allData) return 0;
-
-                const filteredCount = allData.filter(product => {
-                    const inventory = Array.isArray(product.inventory) ? product.inventory[0] : product.inventory;
-                    const availableStock = inventory ? inventory.quantity - inventory.reserved_quantity : 0;
-                    
-                    let stockStatus: StockStatus = 'IN_STOCK';
-                    if (availableStock <= 0) {
-                        stockStatus = 'OUT_OF_STOCK';
-                    } else if (inventory && availableStock <= inventory.min_stock_level) {
-                        stockStatus = 'LOW_STOCK';
-                    }
-                    
-                    return stockStatus === stockFilter;
-                }).length;
-
-                return filteredCount;
-            }
-
-            return count as number;
+            const response = await apiClient.get(`/products/count?${params}`);
+            return response.data.count;
         } catch (error) {
-            return rejectWithValue(error.message);
+            return rejectWithValue(
+                error.response?.data?.error || 'Ürün sayısı alınamadı'
+            );
         }
     }
 );
 
-// Kategorileri çek
+// ESKI: Supabase distinct select
+// YENI: HTTP GET /products/categories
 export const fetchCategories = createAsyncThunk<string[], void>(
     'products/fetchCategories',
     async (_, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
-                .from('products')
-                .select('category')
-                .eq('is_active', true);
-                
-            if (error) {
-                throw new Error(error.message);
-            }
-            const uniqueCategories = Array.from(new Set(data.map(item => item.category)));
-            return uniqueCategories as string[];
+            const response = await apiClient.get('/products/categories');
+            return response.data.categories;
         } catch (error) {
-            return rejectWithValue(error.message);
+            return rejectWithValue(
+                error.response?.data?.error || 'Kategoriler alınamadı'
+            );
         }
     }
 );
 
-// Düşük stok sayısını çek
+// ESKI: Supabase view query
+// YENI: HTTP GET /products/low-stock-count
 export const fetchLowStockCount = createAsyncThunk<number, void>(
     'products/fetchLowStockCount',
     async (_, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
-                .from('low_stock_products')
-                .select('*', { count: 'exact', head: true });
-
-            if (error) {
-                throw new Error(error.message);
-            }
-
-            return (data as any) || 0;
+            const response = await apiClient.get('/products/low-stock-count');
+            return response.data.count;
         } catch (error) {
-            return rejectWithValue(error.message);
+            return rejectWithValue(
+                error.response?.data?.error || 'Düşük stok sayısı alınamadı'
+            );
         }
     }
 );
 
-// Stok durumunu kontrol et
+// ESKI: Supabase RPC function call
+// YENI: HTTP POST /products/:id/check-stock
 export const checkProductStock = createAsyncThunk<
     number, 
     { productId: number, quantity: number }
@@ -214,21 +125,14 @@ export const checkProductStock = createAsyncThunk<
     'products/checkProductStock',
     async ({ productId, quantity }, { rejectWithValue }) => {
         try {
-            const { data, error } = await supabase
-                .rpc('get_available_stock', { product_id_param: productId });
-
-            if (error) {
-                throw new Error(error.message);
-            }
-
-            const availableStock = data || 0;
-            if (availableStock < quantity) {
-                throw new Error(`Yetersiz stok. Mevcut: ${availableStock}, İstenen: ${quantity}`);
-            }
-
-            return availableStock;
+            const response = await apiClient.post(`/products/${productId}/check-stock`, {
+                quantity: quantity
+            });
+            return response.data.available_stock;
         } catch (error) {
-            return rejectWithValue(error.message);
+            return rejectWithValue(
+                error.response?.data?.error || 'Stok kontrolü yapılamadı'
+            );
         }
     }
 );

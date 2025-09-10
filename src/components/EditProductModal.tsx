@@ -1,10 +1,10 @@
 // src/components/EditProductModal.tsx
 import React, { useState } from 'react';
-import { supabase } from '../supabaseClient';
 import { useDispatch } from 'react-redux';
 import { setNotification } from '../store/notificationSlice';
 import type { AppDispatch } from '../store/store';
 import type { ProductWithStock } from '../types';
+import { apiClient } from '../config/api';
 
 interface EditProductModalProps {
     product: ProductWithStock;
@@ -27,70 +27,45 @@ const EditProductModal: React.FC<EditProductModalProps> = ({ product, onClose, o
     const [isActive, setIsActive] = useState(product.is_active ?? true); // Aktiflik durumu
     const [loading, setLoading] = useState(false);
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setLoading(true);
+   // handleSubmit fonksiyonunu backend API'ye çevir:
+const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
 
-        try {
-            // SKU benzersizlik kontrolü (başka ürünlerde aynı SKU var mı)
-            if (sku && sku !== product.sku) {
-                const { data: existingSku } = await supabase
-                    .from('products')
-                    .select('id')
-                    .eq('sku', sku)
-                    .neq('id', product.id)
-                    .single();
+    try {
+        const updateData = {
+            title,
+            description: description || null,
+            price: parseFloat(price),
+            image,
+            category,
+            sku: sku || null,
+            rating: rating ? parseFloat(rating) : null,
+            rating_count: ratingCount ? parseInt(ratingCount) : null,
+            is_active: isActive
+        };
 
-                if (existingSku) {
-                    dispatch(setNotification({ 
-                        message: 'Bu SKU zaten başka bir ürün tarafından kullanılıyor.', 
-                        type: 'error' 
-                    }));
-                    setLoading(false);
-                    return;
-                }
-            }
+        const response = await apiClient.put(`/products/${product.id}`, updateData);
 
-            // Ürünü güncelle
-            const updateData = {
-                title,
-                description: description || null,
-                price: parseFloat(price),
-                image,
-                category,
-                sku: sku || null,
-                rating: rating ? parseFloat(rating) : null,
-                rating_count: ratingCount ? parseInt(ratingCount) : null,
-                is_active: isActive,
-                updated_at: new Date().toISOString()
-            };
-
-            const { error } = await supabase
-                .from('products')
-                .update(updateData)
-                .eq('id', product.id);
-
-            if (error) {
-                throw new Error(error.message);
-            }
-
+        if (response.status === 200) {
             dispatch(setNotification({ 
                 message: 'Ürün başarıyla güncellendi!', 
                 type: 'success' 
             }));
             
-            onProductUpdated(); // Tabloyu yeniden yükle
-            onClose(); // Modal'ı kapat
-
-        } catch (error ) {
-            dispatch(setNotification({ 
-                message: 'Ürün güncellenirken bir hata oluştu: ' + error.message, 
-                type: 'error' 
-            }));
+            onProductUpdated();
+            onClose();
         }
 
-        setLoading(false);
-    };
+    } catch (error) {
+        dispatch(setNotification({ 
+            message: 'Ürün güncellenirken bir hata oluştu: ' + error.response?.data?.error || error.message, 
+            type: 'error' 
+        }));
+    }
+
+    setLoading(false);
+};
 
     return (
         <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex={-1} aria-modal="true" role="dialog">

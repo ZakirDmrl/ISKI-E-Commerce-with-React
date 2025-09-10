@@ -1,10 +1,10 @@
 // src/components/ProductTable.tsx
 import React, { useState } from 'react';
-import { supabase } from '../supabaseClient';
 import { useDispatch } from 'react-redux';
 import { setNotification } from '../store/notificationSlice';
 import EditProductModal from './EditProductModal';
 import type { ProductWithStock, StockStatus } from '../types';
+import { apiClient } from '../config/api';
 
 interface ProductTableProps {
     products: ProductWithStock[];
@@ -18,21 +18,21 @@ const ProductTable: React.FC<ProductTableProps> = ({ products, onProductUpdated 
     const [showStockModal, setShowStockModal] = useState(false);
     const [selectedProductForStock, setSelectedProductForStock] = useState<ProductWithStock | null>(null);
 
-    const handleDelete = async (productId: number) => {
-        if (window.confirm('Bu ürünü silmek istediğinizden emin misiniz?')) {
-            const { error } = await supabase
-                .from('products')
-                .delete()
-                .eq('id', productId);
-
-            if (error) {
-                dispatch(setNotification({ message: 'Ürün silinirken bir hata oluştu: ' + error.message, type: 'error' }));
-            } else {
-                dispatch(setNotification({ message: 'Ürün başarıyla silindi.', type: 'success' }));
-                onProductUpdated();
-            }
+  // handleDelete fonksiyonu:
+const handleDelete = async (productId: number) => {
+    if (window.confirm('Bu ürünü silmek istediğinizden emin misiniz?')) {
+        try {
+            await apiClient.delete(`/products/${productId}`);
+            dispatch(setNotification({ message: 'Ürün başarıyla silindi.', type: 'success' }));
+            onProductUpdated();
+        } catch (error) {
+            dispatch(setNotification({ 
+                message: 'Ürün silinirken bir hata oluştu: ' + error.response?.data?.error || error.message, 
+                type: 'error' 
+            }));
         }
-    };
+    }
+};
     
     const handleEditClick = (product: ProductWithStock) => {
         setSelectedProduct(product);
@@ -86,35 +86,32 @@ const ProductTable: React.FC<ProductTableProps> = ({ products, onProductUpdated 
         const [reason, setReason] = useState('');
         const [loading, setLoading] = useState(false);
 
-        const handleStockUpdate = async (e: React.FormEvent) => {
-            e.preventDefault();
-            if (!stockQuantity || isNaN(Number(stockQuantity))) {
-                dispatch(setNotification({ message: 'Geçerli bir miktar girin', type: 'error' }));
-                return;
-            }
+       const handleStockUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stockQuantity || isNaN(Number(stockQuantity))) {
+        dispatch(setNotification({ message: 'Geçerli bir miktar girin', type: 'error' }));
+        return;
+    }
 
-            setLoading(true);
-            try {
-                const { error } = await supabase.rpc('add_stock', {
-                    product_id_param: product.id,
-                    quantity_param: stockType === 'OUT' ? -Number(stockQuantity) : Number(stockQuantity),
-                    reference_type_param: stockType,
-                    notes_param: reason || null
-                });
+    setLoading(true);
+    try {
+        await apiClient.post(`/products/${product.id}/stock-update`, {
+            quantity: stockType === 'OUT' ? -Number(stockQuantity) : Number(stockQuantity),
+            type: stockType,
+            reason: reason || null
+        });
 
-                if (error) {
-                    dispatch(setNotification({ message: 'Stok güncellenirken hata: ' + error.message, type: 'error' }));
-                } else {
-                    dispatch(setNotification({ message: 'Stok başarıyla güncellendi', type: 'success' }));
-                    onProductUpdated();
-                    onClose();
-                }
-            } catch (error) {
-                dispatch(setNotification({ message: 'Beklenmedik hata: ' + error.message, type: 'error' }));
-            }
-            setLoading(false);
-        };
-
+        dispatch(setNotification({ message: 'Stok başarıyla güncellendi', type: 'success' }));
+        onProductUpdated();
+        onClose();
+    } catch (error) {
+        dispatch(setNotification({ 
+            message: 'Stok güncellenirken hata: ' + error.response?.data?.error || error.message, 
+            type: 'error' 
+        }));
+    }
+    setLoading(false);
+};
         return (
             <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex={-1}>
                 <div className="modal-dialog">

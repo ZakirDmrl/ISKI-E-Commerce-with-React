@@ -2,14 +2,14 @@
 import React, { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../supabaseClient';
 import type { RootState, AppDispatch } from '../store/store';
 import type { AppUser } from '../store/authSlice';
 import { fetchLowStockCount } from '../store/productSlice';
 import { setNotification } from '../store/notificationSlice';
 import AddProductForm from './AddProductForm';
 import ProductTable from '../components/ProductTable';
-import type { DashboardStats, LowStockProduct, Product, ProductWithStock, StockStatus } from '../types';
+import type { DashboardStats, LowStockProduct, Product } from '../types';
+import { apiClient } from '../config/api';
 
 // Sayfalama için sabitler
 const ITEMS_PER_PAGE = 8;
@@ -47,110 +47,44 @@ const AdminPage: React.FC = () => {
 		}
 	}, [isAuthenticated, user, dispatch, activeTab, currentPage]);
 
-	const fetchDashboardData = async () => {
-		try {
-			setLoadingStats(true);
+	// fetchDashboardData ve fetchProducts fonksiyonları backend API'ye çevrilmeli:
+const fetchDashboardData = async () => {
+    try {
+        setLoadingStats(true);
 
-			// Paralel olarak verileri çek
-			const [
-				{ count: totalProducts },
-				{ count: totalOrders },
-				{ data: inventoryValue },
-				{ data: lowStock }
-			] = await Promise.all([
-				supabase.from('products').select('*', { count: 'exact', head: true }).eq('is_active', true),
-				supabase.from('orders').select('*', { count: 'exact', head: true }),
-				supabase.from('inventory_value_report').select('*').single(),
-				supabase.from('low_stock_products').select('*')
-			]);
+        const [dashboardResponse, lowStockResponse] = await Promise.all([
+            apiClient.get('/admin/dashboard-stats'),
+            apiClient.get('/products/low-stock')
+        ]);
 
-			// Toplam gelir hesapla
-			const { data: orders } = await supabase
-				.from('orders')
-				.select('total_amount')
-				.in('status', ['completed', 'paid']);
-
-			const totalRevenue = orders?.reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
-
-			// Stok durumu sayıları
-			const { data: stockData } = await supabase.from('stock_report').select('stock_status');
-			const outOfStockCount = stockData?.filter(item => item.stock_status === 'OUT_OF_STOCK').length || 0;
-
-			setDashboardStats({
-				total_products: totalProducts || 0,
-				total_orders: totalOrders || 0,
-				total_revenue: totalRevenue,
-				low_stock_count: lowStock?.length || 0,
-				out_of_stock_count: outOfStockCount,
-				inventory_value: inventoryValue?.total_retail_value || 0
-			});
-
-			setLowStockProducts(lowStock || []);
-		} catch (error) {
-			dispatch(setNotification({
-				message: 'Dashboard verileri yüklenirken hata: ' + error.message,
-				type: 'error'
-			}));
-		} finally {
-			setLoadingStats(false);
-		}
-	};
+        setDashboardStats(dashboardResponse.data);
+        setLowStockProducts(lowStockResponse.data.products || []);
+    } catch (error) {
+        dispatch(setNotification({
+            message: 'Dashboard verileri yüklenirken hata: ' + error.response?.data?.error || error.message,
+            type: 'error'
+        }));
+    } finally {
+        setLoadingStats(false);
+    }
+};
 
 	const fetchProducts = async () => {
-		setLoadingProducts(true);
-		const from = (currentPage - 1) * ITEMS_PER_PAGE;
-		const to = from + ITEMS_PER_PAGE - 1;
-
-		const { data, count, error } = await supabase
-			.from('products')
-			.select(`
-                *,
-                inventory:inventory(
-                    id,
-                    quantity,
-                    reserved_quantity,
-                    min_stock_level,
-                    max_stock_level,
-                    cost_price,
-                    updated_at
-                )
-            `, { count: 'exact' })
-			.order('id', { ascending: false })
-			.range(from, to);
-
-		if (error) {
-			console.error('Ürünler yüklenirken hata:', error);
-			dispatch(setNotification({
-				message: 'Ürünler yüklenirken hata oluştu: ' + error.message,
-				type: 'error',
-			}));
-			setLoadingProducts(false);
-			return;
-		}
-		// Bu kod bir ürün listesini (data) alıp, her ürüne stok bilgilerini ekleyerek yeni bir liste (productsWithStock) üretiyor.
-		const productsWithStock: ProductWithStock[] = (data || []).map(product => {
-			const inventory = Array.isArray(product.inventory) ? product.inventory[0] : product.inventory;
-			const availableStock = inventory ? inventory.quantity - inventory.reserved_quantity : 0;
-
-			let stockStatus: StockStatus = 'IN_STOCK';
-			if (availableStock <= 0) {
-				stockStatus = 'OUT_OF_STOCK';
-			} else if (inventory && availableStock <= inventory.min_stock_level) {
-				stockStatus = 'LOW_STOCK';
-			}
-
-			return {
-				...product,
-				inventory,
-				available_stock: availableStock,
-				stock_status: stockStatus
-			};
-		});
-
-		setProducts(productsWithStock);
-		setTotalCount(count || 0);
-		setLoadingProducts(false);
-	};
+    setLoadingProducts(true);
+    
+    try {
+        const response = await apiClient.get(`/products?page=${currentPage}&limit=${ITEMS_PER_PAGE}&admin=true`);
+        setProducts(response.data.products);
+        setTotalCount(response.data.total_count || 0);
+    } catch (error) {
+        dispatch(setNotification({
+            message: 'Ürünler yüklenirken hata oluştu: ' + error.response?.data?.error || error.message,
+            type: 'error',
+        }));
+    } finally {
+        setLoadingProducts(false);
+    }
+};
 
 	const handlePageChange = (page: number) => {
 		setCurrentPage(page);

@@ -3,255 +3,210 @@ import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { type RootState, type AppDispatch } from '../store/store';
 import { setNotification, clearNotification } from '../store/notificationSlice';
-import { supabase } from '../supabaseClient';
 import type { Profile } from '../types';
+import { apiClient } from '../config/api';
 
 const ProfilePage: React.FC = () => {
-    const dispatch = useDispatch<AppDispatch>();
-    const { user } = useSelector((state: RootState) => state.auth);
-    
-    const [profile, setProfile] = useState<Profile | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [updating, setUpdating] = useState(false);
-    const [editMode, setEditMode] = useState(false);
-    const [uploadingAvatar, setUploadingAvatar] = useState(false);
-    
-    // Form states
-    const [fullName, setFullName] = useState('');
-    const [username, setUsername] = useState('');
-    const [avatarFile, setAvatarFile] = useState<File | null>(null);
-    const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+	const dispatch = useDispatch<AppDispatch>();
+	const { user } = useSelector((state: RootState) => state.auth);
 
-    // Load profile data
-    useEffect(() => {
-        if (user?.id) {
-            loadProfile();
-        }
-    }, [user?.id]);
+	const [profile, setProfile] = useState<Profile | null>(null);
+	const [loading, setLoading] = useState(true);
+	const [updating, setUpdating] = useState(false);
+	const [editMode, setEditMode] = useState(false);
+	const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
-    const loadProfile = async () => {
-        try {
-            setLoading(true);
-            const { data, error } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', user?.id)
-                .single();
+	// Form states
+	const [fullName, setFullName] = useState('');
+	const [username, setUsername] = useState('');
+	const [avatarFile, setAvatarFile] = useState<File | null>(null);
+	const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
-            if (error) throw error;
+	// Load profile data
+	useEffect(() => {
+		if (user?.id) {
+			loadProfile();
+		}
+	}, [user?.id]);
 
-            setProfile(data);
-            setFullName(data.full_name || '');
-            setUsername(data.username || '');
-            setAvatarPreview(data.avatar_url || null);
-        } catch (error) {
-            console.error('Profile load error:', error);
-            dispatch(setNotification({
-                message: 'Profil bilgileri yüklenirken hata oluştu.',
-                type: 'error'
-            }));
-            setTimeout(() => dispatch(clearNotification()), 3000);
-        } finally {
-            setLoading(false);
-        }
-    };
+	const loadProfile = async () => {
+		try {
+			setLoading(true);
+			const response = await apiClient.get('/profile');
 
-    const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (file) {
-            // File size validation (max 5MB)
-            if (file.size > 5 * 1024 * 1024) {
-                dispatch(setNotification({
-                    message: 'Dosya boyutu çok büyük. Maksimum 5MB olmalıdır.',
-                    type: 'error'
-                }));
-                setTimeout(() => dispatch(clearNotification()), 3000);
-                return;
-            }
+			const profileData = response.data.profile;
+			setProfile(profileData);
+			setFullName(profileData.full_name || '');
+			setUsername(profileData.username || '');
+			setAvatarPreview(profileData.avatar_url || null);
+		} catch (error) {
+			dispatch(setNotification({
+				message: 'Profil bilgileri yüklenirken hata oluştu.',
+				type: 'error'
+			}));
+			setTimeout(() => dispatch(clearNotification()), 3000);
+		} finally {
+			setLoading(false);
+		}
+	};
 
-            // File type validation
-            if (!file.type.startsWith('image/')) {
-                dispatch(setNotification({
-                    message: 'Lütfen geçerli bir resim dosyası seçin.',
-                    type: 'error'
-                }));
-                setTimeout(() => dispatch(clearNotification()), 3000);
-                return;
-            }
+	const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+		const file = event.target.files?.[0];
+		if (file) {
+			// File size validation (max 5MB)
+			if (file.size > 5 * 1024 * 1024) {
+				dispatch(setNotification({
+					message: 'Dosya boyutu çok büyük. Maksimum 5MB olmalıdır.',
+					type: 'error'
+				}));
+				setTimeout(() => dispatch(clearNotification()), 3000);
+				return;
+			}
 
-            setAvatarFile(file);
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                setAvatarPreview(e.target?.result as string);
-            };
-            reader.readAsDataURL(file);
-        }
-    };
+			// File type validation
+			if (!file.type.startsWith('image/')) {
+				dispatch(setNotification({
+					message: 'Lütfen geçerli bir resim dosyası seçin.',
+					type: 'error'
+				}));
+				setTimeout(() => dispatch(clearNotification()), 3000);
+				return;
+			}
 
-    const uploadAvatar = async (file: File): Promise<string | null> => {
-        try {
-            setUploadingAvatar(true);
-            
-            // Delete old avatar if exists
-            if (profile?.avatar_url) {
-                const oldPath = profile.avatar_url.split('/').pop();
-                if (oldPath && oldPath !== 'default-avatar.png') {
-                    await supabase.storage
-                        .from('avatars')
-                        .remove([`${user?.id}/${oldPath}`]);
-                }
-            }
+			setAvatarFile(file);
+			const reader = new FileReader();
+			reader.onload = (e) => {
+				setAvatarPreview(e.target?.result as string);
+			};
+			reader.readAsDataURL(file);
+		}
+	};
 
-            const fileExt = file.name.split('.').pop();
-            const fileName = `avatar-${Date.now()}.${fileExt}`;
-            const filePath = `${user?.id}/${fileName}`;
+	const uploadAvatar = async (file: File): Promise<string | null> => {
+		try {
+			setUploadingAvatar(true);
 
-            const { error: uploadError } = await supabase.storage
-                .from('avatars')
-                .upload(filePath, file, {
-                    cacheControl: '3600',
-                    upsert: false
-                });
+			const formData = new FormData();
+			formData.append('avatar', file);
 
-            if (uploadError) throw uploadError;
+			const response = await apiClient.post('/profile/avatar', formData, {
+				headers: {
+					'Content-Type': 'multipart/form-data',
+				}
+			});
 
-            const { data: { publicUrl } } = supabase.storage
-                .from('avatars')
-                .getPublicUrl(filePath);
+			return response.data.avatar_url;
+		} catch (error) {
+			dispatch(setNotification({
+				message: 'Avatar yüklenirken hata oluştu: ' + (error.response?.data?.error || error.message),
+				type: 'error'
+			}));
+			setTimeout(() => dispatch(clearNotification()), 3000);
+			return null;
+		} finally {
+			setUploadingAvatar(false);
+		}
+	};
 
-            return publicUrl;
-        } catch (error) {
-            console.error('Avatar upload error:', error);
-            dispatch(setNotification({
-                message: 'Avatar yüklenirken hata oluştu: ' + error.message,
-                type: 'error'
-            }));
-            setTimeout(() => dispatch(clearNotification()), 3000);
-            return null;
-        } finally {
-            setUploadingAvatar(false);
-        }
-    };
+	// handleUpdateProfile fonksiyonu - avatar upload kısmını aktif et
+	const handleUpdateProfile = async () => {
+		if (!user?.id) return;
 
-    const handleUpdateProfile = async () => {
-        if (!user?.id) return;
+		try {
+			setUpdating(true);
 
-        try {
-            setUpdating(true);
+			let avatarUrl = profile?.avatar_url;
 
-            let avatarUrl = profile?.avatar_url;
+			// Upload new avatar if selected
+			if (avatarFile) {
+				const uploadedUrl = await uploadAvatar(avatarFile);
+				if (uploadedUrl) {
+					avatarUrl = uploadedUrl;
+				} else {
+					return; // Upload failed, error already shown
+				}
+			}
 
-            // Upload new avatar if selected
-            if (avatarFile) {
-                const uploadedUrl = await uploadAvatar(avatarFile);
-                if (uploadedUrl) {
-                    avatarUrl = uploadedUrl;
-                } else {
-                    return; // Upload failed, error already shown
-                }
-            }
+			// Backend'e profile update isteği
+			const updateData = {
+				full_name: fullName.trim() || null,
+				username: username.trim() || null,
+				avatar_url: avatarUrl
+			};
 
-            // Check username uniqueness if changed
-            if (username && username !== profile?.username) {
-                const { data: existingUser } = await supabase
-                    .from('profiles')
-                    .select('id')
-                    .eq('username', username)
-                    .neq('id', user.id)
-                    .single();
+			const response = await apiClient.put('/profile', updateData);
 
-                if (existingUser) {
-                    dispatch(setNotification({
-                        message: 'Bu kullanıcı adı zaten kullanımda.',
-                        type: 'error'
-                    }));
-                    setTimeout(() => dispatch(clearNotification()), 3000);
-                    return;
-                }
-            }
+			if (response.status === 200) {
+				dispatch(setNotification({
+					message: 'Profil başarıyla güncellendi!',
+					type: 'success'
+				}));
 
-            const { error } = await supabase
-                .from('profiles')
-                .update({
-                    full_name: fullName.trim() || null,
-                    username: username.trim() || null,
-                    avatar_url: avatarUrl,
-                    updated_at: new Date().toISOString(),
-                })
-                .eq('id', user.id);
+				setEditMode(false);
+				setAvatarFile(null);
+				await loadProfile();
+			}
 
-            if (error) throw error;
+		} catch (error) {
+			dispatch(setNotification({
+				message: `Profil güncellenirken hata oluştu: ${error.response?.data?.error || error.message}`,
+				type: 'error'
+			}));
+		} finally {
+			setUpdating(false);
+			setTimeout(() => dispatch(clearNotification()), 3000);
+		}
+	};
 
-            dispatch(setNotification({
-                message: 'Profil başarıyla güncellendi!',
-                type: 'success'
-            }));
-            
-            setEditMode(false);
-            setAvatarFile(null);
-            await loadProfile(); // Reload profile data
-            
-        } catch (error) {
-            console.error('Profile update error:', error);
-            dispatch(setNotification({
-                message: `Profil güncellenirken hata oluştu: ${error.message}`,
-                type: 'error'
-            }));
-        } finally {
-            setUpdating(false);
-            setTimeout(() => dispatch(clearNotification()), 3000);
-        }
-    };
+	const cancelEdit = () => {
+		setEditMode(false);
+		setFullName(profile?.full_name || '');
+		setUsername(profile?.username || '');
+		setAvatarFile(null);
+		setAvatarPreview(profile?.avatar_url || null);
+	};
 
-    const cancelEdit = () => {
-        setEditMode(false);
-        setFullName(profile?.full_name || '');
-        setUsername(profile?.username || '');
-        setAvatarFile(null);
-        setAvatarPreview(profile?.avatar_url || null);
-    };
+	const generateDefaultAvatar = (email: string, size: number) => {
+		const colors = [
+			'#667eea', '#764ba2', '#f093fb', '#f5576c',
+			'#4facfe', '#00f2fe', '#43e97b', '#38f9d7',
+			'#ffecd2', '#fcb69f', '#a8edea', '#fed6e3'
+		];
 
-    const generateDefaultAvatar = (email: string, size: number) => {
-        const colors = [
-            '#667eea', '#764ba2', '#f093fb', '#f5576c',
-            '#4facfe', '#00f2fe', '#43e97b', '#38f9d7',
-            '#ffecd2', '#fcb69f', '#a8edea', '#fed6e3'
-        ];
-        
-        const initial = email?.charAt(0).toUpperCase() || '?';
-        const backgroundColor = colors[email?.length % colors.length || 0];
-        
-        return (
-            <div 
-                className="default-avatar"
-                style={{
-                    width: size,
-                    height: size,
-                    backgroundColor,
-                    borderRadius: '50%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'white',
-                    fontSize: `${size * 0.4}px`,
-                    fontWeight: '700',
-                    border: '4px solid rgba(255,255,255,0.2)',
-                    boxShadow: '0 10px 30px rgba(0,0,0,0.3)'
-                }}
-            >
-                {initial}
-            </div>
-        );
-    };
+		const initial = email?.charAt(0).toUpperCase() || '?';
+		const backgroundColor = colors[email?.length % colors.length || 0];
 
-    if (loading) {
-        return (
-            <div className="loading-container">
-                <div className="loading-content">
-                    <div className="loading-spinner"></div>
-                    <p>Profil yükleniyor...</p>
-                </div>
-                <style>{`
+		return (
+			<div
+				className="default-avatar"
+				style={{
+					width: size,
+					height: size,
+					backgroundColor,
+					borderRadius: '50%',
+					display: 'flex',
+					alignItems: 'center',
+					justifyContent: 'center',
+					color: 'white',
+					fontSize: `${size * 0.4}px`,
+					fontWeight: '700',
+					border: '4px solid rgba(255,255,255,0.2)',
+					boxShadow: '0 10px 30px rgba(0,0,0,0.3)'
+				}}
+			>
+				{initial}
+			</div>
+		);
+	};
+
+	if (loading) {
+		return (
+			<div className="loading-container">
+				<div className="loading-content">
+					<div className="loading-spinner"></div>
+					<p>Profil yükleniyor...</p>
+				</div>
+				<style>{`
                     .loading-container {
                         display: flex;
                         justify-content: center;
@@ -280,183 +235,183 @@ const ProfilePage: React.FC = () => {
                         margin: 0;
                     }
                 `}</style>
-            </div>
-        );
-    }
+			</div>
+		);
+	}
 
-    return (
-        <div className="profile-page">
-            {/* Header */}
-            <div className="profile-header">
-                <h1 className="header-title">Profil Ayarları</h1>
-                <p className="header-subtitle">
-                    Hesap bilgilerinizi düzenleyebilirsiniz
-                </p>
-            </div>
+	return (
+		<div className="profile-page">
+			{/* Header */}
+			<div className="profile-header">
+				<h1 className="header-title">Profil Ayarları</h1>
+				<p className="header-subtitle">
+					Hesap bilgilerinizi düzenleyebilirsiniz
+				</p>
+			</div>
 
-            {/* Profile Card */}
-            <div className="profile-card">
-                {/* Avatar Section */}
-                <div className="avatar-section">
-                    <div className="avatar-container">
-                        {avatarPreview ? (
-                            <img 
-                                src={avatarPreview} 
-                                alt="Profile Avatar"
-                                className="avatar-image"
-                            />
-                        ) : (
-                            generateDefaultAvatar(user?.email || '', 120)
-                        )}
-                        
-                        {editMode && (
-                            <label className="avatar-upload-btn">
-                                {uploadingAvatar ? (
-                                    <div className="upload-spinner"></div>
-                                ) : (
-                                    <span>📷</span>
-                                )}
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={handleAvatarChange}
-                                    style={{ display: 'none' }}
-                                    disabled={uploadingAvatar}
-                                />
-                            </label>
-                        )}
-                        
-                        {uploadingAvatar && (
-                            <div className="upload-overlay">
-                                <div className="upload-progress">Yükleniyor...</div>
-                            </div>
-                        )}
-                    </div>
+			{/* Profile Card */}
+			<div className="profile-card">
+				{/* Avatar Section */}
+				<div className="avatar-section">
+					<div className="avatar-container">
+						{avatarPreview ? (
+							<img
+								src={avatarPreview}
+								alt="Profile Avatar"
+								className="avatar-image"
+							/>
+						) : (
+							generateDefaultAvatar(user?.email || '', 120)
+						)}
 
-                    {avatarFile && (
-                        <div className="file-selected">
-                            ✅ Yeni avatar seçildi: {avatarFile.name}
-                        </div>
-                    )}
-                    
-                    {editMode && !uploadingAvatar && (
-                        <div className="avatar-help">
-                            📷 Profil resminizi değiştirmek için tıklayın (Max: 5MB)
-                        </div>
-                    )}
-                </div>
+						{editMode && (
+							<label className="avatar-upload-btn">
+								{uploadingAvatar ? (
+									<div className="upload-spinner"></div>
+								) : (
+									<span>📷</span>
+								)}
+								<input
+									type="file"
+									accept="image/*"
+									onChange={handleAvatarChange}
+									style={{ display: 'none' }}
+									disabled={uploadingAvatar}
+								/>
+							</label>
+						)}
 
-                {/* Profile Form */}
-                <div className="profile-form">
-                    {/* Email (Read-only) */}
-                    <div className="form-group">
-                        <label className="form-label">
-                            📧 E-posta
-                        </label>
-                        <input
-                            type="email"
-                            value={user?.email || ''}
-                            disabled
-                            className="form-input disabled"
-                        />
-                        <small className="form-help">
-                            E-posta adresi değiştirilemez
-                        </small>
-                    </div>
+						{uploadingAvatar && (
+							<div className="upload-overlay">
+								<div className="upload-progress">Yükleniyor...</div>
+							</div>
+						)}
+					</div>
 
-                    {/* Full Name */}
-                    <div className="form-group">
-                        <label className="form-label">
-                            👤 Ad Soyad
-                        </label>
-                        <input
-                            type="text"
-                            value={fullName}
-                            onChange={(e) => setFullName(e.target.value)}
-                            disabled={!editMode}
-                            placeholder="Ad ve soyadınızı girin"
-                            className={`form-input ${editMode ? 'editable' : 'disabled'}`}
-                        />
-                    </div>
+					{avatarFile && (
+						<div className="file-selected">
+							✅ Yeni avatar seçildi: {avatarFile.name}
+						</div>
+					)}
 
-                    {/* Username */}
-                    <div className="form-group">
-                        <label className="form-label">
-                            🏷️ Kullanıcı Adı
-                        </label>
-                        <input
-                            type="text"
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
-                            disabled={!editMode}
-                            placeholder="Kullanıcı adınızı girin"
-                            className={`form-input ${editMode ? 'editable' : 'disabled'}`}
-                        />
-                        <small className="form-help">
-                            Sadece küçük harf, rakam ve alt çizgi kullanılabilir
-                        </small>
-                    </div>
+					{editMode && !uploadingAvatar && (
+						<div className="avatar-help">
+							📷 Profil resminizi değiştirmek için tıklayın (Max: 5MB)
+						</div>
+					)}
+				</div>
 
-                    {/* Account Info */}
-                    <div className="info-grid">
-                        <div className="info-item">
-                            <label className="form-label">
-                                📅 Üyelik Tarihi
-                            </label>
-                            <div className="info-value">
-                                {profile?.created_at 
-                                    ? new Date(profile.created_at).toLocaleDateString('tr-TR')
-                                    : 'Bilinmiyor'
-                                }
-                            </div>
-                        </div>
+				{/* Profile Form */}
+				<div className="profile-form">
+					{/* Email (Read-only) */}
+					<div className="form-group">
+						<label className="form-label">
+							📧 E-posta
+						</label>
+						<input
+							type="email"
+							value={user?.email || ''}
+							disabled
+							className="form-input disabled"
+						/>
+						<small className="form-help">
+							E-posta adresi değiştirilemez
+						</small>
+					</div>
 
-                        <div className="info-item">
-                            <label className="form-label">
-                                🔄 Son Güncelleme
-                            </label>
-                            <div className="info-value">
-                                {profile?.updated_at 
-                                    ? new Date(profile.updated_at).toLocaleDateString('tr-TR')
-                                    : 'Hiç'
-                                }
-                            </div>
-                        </div>
-                    </div>
-                </div>
+					{/* Full Name */}
+					<div className="form-group">
+						<label className="form-label">
+							👤 Ad Soyad
+						</label>
+						<input
+							type="text"
+							value={fullName}
+							onChange={(e) => setFullName(e.target.value)}
+							disabled={!editMode}
+							placeholder="Ad ve soyadınızı girin"
+							className={`form-input ${editMode ? 'editable' : 'disabled'}`}
+						/>
+					</div>
 
-                {/* Action Buttons */}
-                <div className="action-buttons">
-                    {!editMode ? (
-                        <button
-                            onClick={() => setEditMode(true)}
-                            className="btn-primary"
-                        >
-                            ✏️ Profili Düzenle
-                        </button>
-                    ) : (
-                        <>
-                            <button
-                                onClick={handleUpdateProfile}
-                                disabled={updating || uploadingAvatar}
-                                className={`btn-success ${(updating || uploadingAvatar) ? 'loading' : ''}`}
-                            >
-                                {updating ? '⏳ Güncelleniyor...' : '💾 Kaydet'}
-                            </button>
+					{/* Username */}
+					<div className="form-group">
+						<label className="form-label">
+							🏷️ Kullanıcı Adı
+						</label>
+						<input
+							type="text"
+							value={username}
+							onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+							disabled={!editMode}
+							placeholder="Kullanıcı adınızı girin"
+							className={`form-input ${editMode ? 'editable' : 'disabled'}`}
+						/>
+						<small className="form-help">
+							Sadece küçük harf, rakam ve alt çizgi kullanılabilir
+						</small>
+					</div>
 
-                            <button
-                                onClick={cancelEdit}
-                                disabled={updating || uploadingAvatar}
-                                className="btn-cancel"
-                            >
-                                ❌ İptal
-                            </button>
-                        </>
-                    )}
-                </div>
-            </div>
+					{/* Account Info */}
+					<div className="info-grid">
+						<div className="info-item">
+							<label className="form-label">
+								📅 Üyelik Tarihi
+							</label>
+							<div className="info-value">
+								{profile?.created_at
+									? new Date(profile.created_at).toLocaleDateString('tr-TR')
+									: 'Bilinmiyor'
+								}
+							</div>
+						</div>
 
-            <style>{`
+						<div className="info-item">
+							<label className="form-label">
+								🔄 Son Güncelleme
+							</label>
+							<div className="info-value">
+								{profile?.updated_at
+									? new Date(profile.updated_at).toLocaleDateString('tr-TR')
+									: 'Hiç'
+								}
+							</div>
+						</div>
+					</div>
+				</div>
+
+				{/* Action Buttons */}
+				<div className="action-buttons">
+					{!editMode ? (
+						<button
+							onClick={() => setEditMode(true)}
+							className="btn-primary"
+						>
+							✏️ Profili Düzenle
+						</button>
+					) : (
+						<>
+							<button
+								onClick={handleUpdateProfile}
+								disabled={updating || uploadingAvatar}
+								className={`btn-success ${(updating || uploadingAvatar) ? 'loading' : ''}`}
+							>
+								{updating ? '⏳ Güncelleniyor...' : '💾 Kaydet'}
+							</button>
+
+							<button
+								onClick={cancelEdit}
+								disabled={updating || uploadingAvatar}
+								className="btn-cancel"
+							>
+								❌ İptal
+							</button>
+						</>
+					)}
+				</div>
+			</div>
+
+			<style>{`
                 .profile-page {
                     width: 100%;
                     padding: 0;
@@ -855,8 +810,8 @@ const ProfilePage: React.FC = () => {
                     animation: spin 1s linear infinite;
                 }
             `}</style>
-        </div>
-    );
+		</div>
+	);
 };
 
 export default ProfilePage;
