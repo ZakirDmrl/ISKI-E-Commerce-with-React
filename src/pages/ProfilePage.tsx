@@ -27,7 +27,10 @@ const ProfilePage: React.FC = () => {
             const response = await apiClient.get('/profile');
             const profileData = response.data.profile;
             setProfile(profileData);
-            // setFullName, setUsername, setAvatarPreview gibi diğer state'leri de burada güncelleyebilirsiniz.
+            // Profil form alanlarını ve avatar önizlemesini doldur
+            setFullName(profileData?.full_name || '');
+            setUsername(profileData?.username || '');
+            setAvatarPreview(profileData?.avatar_url || null);
         } catch (error) {
 			console.log(error);
             dispatch(setNotification({

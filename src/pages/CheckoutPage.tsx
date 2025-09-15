@@ -11,7 +11,10 @@ const CheckoutPage: React.FC = () => {
     const { items, status } = useSelector((state: RootState) => state.cart);
     const { user, isAuthenticated } = useSelector((state: RootState) => state.auth);
 
-    const subtotal = items.reduce((total, item) => total + item.price * item.quantity, 0);
+    const subtotal = items.reduce((total, item) => {
+        const price = item.product?.price || 0;
+        return total + price * item.quantity;
+    }, 0);
     const tax = subtotal * 0.18;
     const shipping = 20;
     const total = subtotal + tax + shipping;
@@ -149,13 +152,13 @@ const CheckoutPage: React.FC = () => {
                                 color: '#e0e0e0'
                             }}>
                                 <div>
-                                    <span style={{ fontWeight: '600' }}>{item.title}</span>
+                                    <span style={{ fontWeight: '600' }}>{item.product.title}</span>
                                     <span style={{ color: '#ccc', marginLeft: '10px' }}>
                                         ({item.quantity} adet)
                                     </span>
                                 </div>
                                 <span style={{ fontWeight: '700' }}>
-                                    {(item.price * item.quantity).toFixed(2)} TL
+                                    {(item.product?.price * item.quantity).toFixed(2)} TL
                                 </span>
                             </div>
                         ))}
