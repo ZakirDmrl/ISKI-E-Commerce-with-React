@@ -21,23 +21,44 @@ const ProductDetail = () => {
 	const [addingToCart, setAddingToCart] = useState(false);
 
 	useEffect(() => {
+		let isMounted = true; // Component mount durumunu takip et
+
 		const fetchProduct = async () => {
+			console.log(`Fetching product for ID: ${productId}`);
 			setLoading(true);
 			setError(null);
 
 			try {
 				const response = await apiClient.get(`/products/${productId}`);
-				setProduct(response.data.product);
+				console.log(`Product fetched successfully for ID: ${productId}`);
+				
+				// Component hala mount durumundaysa state'i güncelle
+				if (isMounted) {
+					setProduct(response.data.product);
+				}
 			} catch (err) {
-				setError(err.response?.data?.error || 'Ürün bulunamadı');
+				console.error(`Error fetching product for ID ${productId}:`, err);
+				
+				// Component hala mount durumundaysa error'u set et
+				if (isMounted) {
+					setError(err.response?.data?.error || 'Ürün bulunamadı');
+				}
 			} finally {
-				setLoading(false);
+				// Component hala mount durumundaysa loading'i false yap
+				if (isMounted) {
+					setLoading(false);
+				}
 			}
 		};
 
 		if (productId) {
 			fetchProduct();
 		}
+
+		// Cleanup function
+		return () => {
+			isMounted = false;
+		};
 	}, [productId]);
 
 	const handleAddToCart = async () => {

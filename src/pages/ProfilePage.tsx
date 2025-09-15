@@ -1,5 +1,5 @@
 // src/pages/ProfilePage.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { type RootState, type AppDispatch } from '../store/store';
 import { setNotification, clearNotification } from '../store/notificationSlice';
@@ -21,34 +21,32 @@ const ProfilePage: React.FC = () => {
 	const [username, setUsername] = useState('');
 	const [avatarFile, setAvatarFile] = useState<File | null>(null);
 	const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-
+	const loadProfile = useCallback(async () => {
+        try {
+            setLoading(true);
+            const response = await apiClient.get('/profile');
+            const profileData = response.data.profile;
+            setProfile(profileData);
+            // setFullName, setUsername, setAvatarPreview gibi diğer state'leri de burada güncelleyebilirsiniz.
+        } catch (error) {
+			console.log(error);
+            dispatch(setNotification({
+                message: 'Profil bilgileri yüklenirken hata oluştu.',
+                type: 'error'
+            }));
+            setTimeout(() => dispatch(clearNotification()), 3000);
+        } finally {
+            setLoading(false);
+        }
+    }, [dispatch]);
 	// Load profile data
 	useEffect(() => {
 		if (user?.id) {
 			loadProfile();
 		}
-	}, [user?.id]);
+	}, [user?.id, loadProfile]);
 
-	const loadProfile = async () => {
-		try {
-			setLoading(true);
-			const response = await apiClient.get('/profile');
 
-			const profileData = response.data.profile;
-			setProfile(profileData);
-			setFullName(profileData.full_name || '');
-			setUsername(profileData.username || '');
-			setAvatarPreview(profileData.avatar_url || null);
-		} catch (error) {
-			dispatch(setNotification({
-				message: 'Profil bilgileri yüklenirken hata oluştu.',
-				type: 'error'
-			}));
-			setTimeout(() => dispatch(clearNotification()), 3000);
-		} finally {
-			setLoading(false);
-		}
-	};
 
 	const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
 		const file = event.target.files?.[0];

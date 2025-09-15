@@ -30,9 +30,19 @@ export const signIn = createAsyncThunk(
         try {
             const response = await apiClient.post('/auth/signin', { email, password });
             
-            // Token'ı localStorage'a kaydet
-            if (response.data.session?.access_token) {
-                localStorage.setItem('supabase.auth.token', response.data.session.access_token);
+            console.log('SignIn response:', response.data);
+            
+            // Token'ları localStorage'a kaydet
+            const accessToken = response.data.session?.access_token || response.data.access_token;
+            const refreshToken = response.data.session?.refresh_token || response.data.refresh_token;
+            if (accessToken) {
+                localStorage.setItem('supabase.auth.token', accessToken);
+                console.log('Token saved to localStorage:', accessToken);
+            } else {
+                console.error('No access_token in response:', response.data);
+            }
+            if (refreshToken) {
+                localStorage.setItem('refresh_token', refreshToken);
             }
             
             return response.data.user;

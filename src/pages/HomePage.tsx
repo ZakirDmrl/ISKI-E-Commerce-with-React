@@ -16,12 +16,12 @@ const HomePage: React.FC = () => {
     const productsPerPage = 8;
 
     useEffect(() => {
-        dispatch(fetchTotalProductsCount({ searchTerm: searchTerm, category: selectedCategory }));
+        dispatch(fetchTotalProductsCount({ searchTerm: searchTerm, category: selectedCategory, stockFilter: null }));
         dispatch(fetchCategories());
     }, [dispatch, searchTerm, selectedCategory]);
 
     useEffect(() => {
-        dispatch(fetchProducts({ page: currentPage, limit: productsPerPage, searchTerm, category: selectedCategory }));
+        dispatch(fetchProducts({ page: currentPage, limit: productsPerPage, searchTerm, category: selectedCategory, stockFilter: null }));
     }, [dispatch, currentPage, searchTerm, selectedCategory]);
 
     const handleAddToCart = (product: Product) => {
@@ -172,7 +172,7 @@ const HomePage: React.FC = () => {
             
             {/* Products Grid */}
             <div className="products-section">
-                {products.length > 0 ? (
+                {products && products.length > 0 ? (
                     <div className="products-grid">
                         {products.map((product) => (
                             <ProductCard key={product.id} product={product} onAddToCart={handleAddToCart} />

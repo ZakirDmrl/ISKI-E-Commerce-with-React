@@ -66,15 +66,7 @@ const Navbar = () => {
                 <div className={`navbar-nav ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
                     {isAuthenticated ? (
                         <>
-                            {/* User Welcome with Image Avatar */}
-                            <div className="user-info">
-                                {/* Doğrudan avatar_url'yi kullanıyoruz */}
-                                <img src={avatarUrl} alt="User Avatar" className="user-avatar-img" />
-                                <span className="user-email">
-                                    {user?.email}
-                                </span>
-                            </div>
-
+                           
                             {/* Admin Panel Link */}
                             {user?.isAdmin && (
                                 <button
@@ -94,7 +86,11 @@ const Navbar = () => {
                                 className="nav-link"
                                 onClick={() => setIsMobileMenuOpen(false)}
                             >
-                                👤 Profil
+                                {/* Doğrudan avatar_url'yi kullanıyoruz */}
+                                <img src={avatarUrl} alt="User Avatar" className="user-avatar-img" />
+                                    {user?.email}
+                                <span className="user-email">
+                                </span>
                             </Link>
 
                             {/* Cart Link */}

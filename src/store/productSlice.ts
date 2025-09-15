@@ -178,7 +178,8 @@ const productSlice = createSlice({
             })
             .addCase(fetchTotalProductsCount.fulfilled, (state, action: PayloadAction<number>) => {
                 const totalCount = action.payload;
-                const limit = 5;
+                // HomePage'de productsPerPage = 8 kullanıldığı için aynı değeri kullan
+                const limit = 8;
                 state.totalPages = Math.ceil(totalCount / limit);
             })
             .addCase(fetchCategories.fulfilled, (state, action: PayloadAction<string[]>) => {

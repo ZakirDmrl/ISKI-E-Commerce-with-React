@@ -14,8 +14,12 @@ export const apiClient = axios.create({
 apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('supabase.auth.token');
+    console.log('API Client - Token from localStorage:', token);
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+      console.log('API Client - Authorization header set:', `Bearer ${token}`);
+    } else {
+      console.log('API Client - No token found in localStorage');
     }
     // Multipart form data için Content-Type'ı otomatik ayarla
     if (config.data instanceof FormData) {
@@ -38,7 +42,13 @@ apiClient.interceptors.response.use(
           const response = await axios.post(`${API_BASE_URL}/auth/refresh`, { 
             refresh_token: refreshToken 
           });
-          localStorage.setItem('supabase.auth.token', response.data.access_token);
+          // Yeni access ve refresh token'ları sakla
+          if (response.data?.access_token) {
+            localStorage.setItem('supabase.auth.token', response.data.access_token);
+          }
+          if (response.data?.refresh_token) {
+            localStorage.setItem('refresh_token', response.data.refresh_token);
+          }
           
           // Yeni token ile orijinal isteği tekrarla
           error.config.headers.Authorization = `Bearer ${response.data.access_token}`;
