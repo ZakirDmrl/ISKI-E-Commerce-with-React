@@ -10,7 +10,6 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
 	// Sepete ürün ekleme fonksiyonu
 	const addToCart = (product: Product) => {
-		// 1. Ürün zaten sepette var mı kontrol et
 		setCartItems(prevItems => {
 			const existingItem = prevItems.find(item => item.id === product.id);
 			// 2. Eğer varsa, miktarını artır 

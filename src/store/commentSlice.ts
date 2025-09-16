@@ -24,8 +24,8 @@ export const fetchComments = createAsyncThunk<Comment[], { productId: number, us
             // Go backend tek istekle formatted data dönüyor
             const params = userId ? `?user_id=${userId}` : '';
             const response = await apiClient.get(`/comments/product/${productId}${params}`);
-            
-            return response.data.comments;
+            // Backend bazen null dönebilir; güvenli şekilde []'e çevir
+            return (response.data?.comments ?? []) as Comment[];
         } catch (error) {
             return rejectWithValue(
                 error.response?.data?.error || 'Yorumlar yüklenirken hata oluştu'
