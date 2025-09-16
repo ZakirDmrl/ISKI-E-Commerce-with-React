@@ -1,5 +1,5 @@
 // src/HomePage.tsx
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { type RootState, type AppDispatch } from '../store/store';
 import { fetchProducts, fetchTotalProductsCount, fetchCategories, setCurrentPage, setSearchTerm, setSelectedCategory } from '../store/productSlice';
@@ -15,14 +15,48 @@ const HomePage: React.FC = () => {
 
     const productsPerPage = 8;
 
+    // Kategorileri sadece bir kez yükle
     useEffect(() => {
-        dispatch(fetchTotalProductsCount({ searchTerm: searchTerm, category: selectedCategory, stockFilter: null }));
         dispatch(fetchCategories());
-    }, [dispatch, searchTerm, selectedCategory]);
+    }, [dispatch]);
+
+    // Aramayı ve kategori seçimini debounce et
+    const [debouncedSearch, setDebouncedSearch] = useState(searchTerm);
+    const [debouncedCategory, setDebouncedCategory] = useState(selectedCategory);
 
     useEffect(() => {
-        dispatch(fetchProducts({ page: currentPage, limit: productsPerPage, searchTerm, category: selectedCategory, stockFilter: null }));
-    }, [dispatch, currentPage, searchTerm, selectedCategory]);
+        const handle = setTimeout(() => {
+            setDebouncedSearch(searchTerm);
+            setDebouncedCategory(selectedCategory);
+        }, 350);
+        return () => clearTimeout(handle);
+    }, [searchTerm, selectedCategory]);
+
+    // Ürün isteğini ve count isteğini sıraya al (protokolü zorlamamak için)
+    useEffect(() => {
+        dispatch(
+            fetchProducts({
+                page: currentPage,
+                limit: productsPerPage,
+                searchTerm: debouncedSearch,
+                category: debouncedCategory,
+                stockFilter: null,
+            })
+        )
+            .unwrap()
+            .then(() => {
+                dispatch(
+                    fetchTotalProductsCount({
+                        searchTerm: debouncedSearch,
+                        category: debouncedCategory,
+                        stockFilter: null,
+                    })
+                );
+            })
+            .catch(() => {
+                // hata gösterimi zaten slice'ta yönetiliyor
+            });
+    }, [dispatch, currentPage, debouncedSearch, debouncedCategory]);
 
     const handleAddToCart = (product: Product) => {
         if (!isAuthenticated || !user) {
@@ -142,32 +176,26 @@ const HomePage: React.FC = () => {
             </div>
 
             {/* Filters Section */}
-            <div className="filters-section">
-                <div className="filters-content">
-                    <div className="search-container">
-                        <input
-                            type="text"
-                            placeholder="🔍 Ürün ara..."
-                            value={searchTerm}
-                            onChange={handleSearchChange}
-                            className="search-input"
-                        />
-                    </div>
-                    <div className="category-container">
-                        <select
-                            value={selectedCategory || ''}
-                            onChange={handleCategoryChange}
-                            className="category-select"
-                        >
-                            <option value="">📂 Tüm Kategoriler</option>
-                            {categories.map((category) => (
-                                <option key={category} value={category}>
-                                    {category}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                </div>
+            <div className="filters-toolbar">
+                <input
+                    type="text"
+                    placeholder="🔍 Ürün ara..."
+                    value={searchTerm}
+                    onChange={handleSearchChange}
+                    className="toolbar-input"
+                />
+                <select
+                    value={selectedCategory || ''}
+                    onChange={handleCategoryChange}
+                    className="toolbar-select"
+                >
+                    <option value="">📂 Tüm Kategoriler</option>
+                    {categories.map((category) => (
+                        <option key={category} value={category}>
+                            {category}
+                        </option>
+                    ))}
+                </select>
             </div>
             
             {/* Products Grid */}
@@ -264,65 +292,47 @@ const HomePage: React.FC = () => {
                 }
 
                 /* Filters Section */
-                .filters-section {
-                    background: rgba(255,255,255,0.05);
-                    backdrop-filter: blur(10px);
-                    border-radius: 16px;
-                    padding: clamp(1rem, 3vw, 2rem);
-                    margin: 1rem;
-                    margin-bottom: 2rem;
-                    border: 1px solid rgba(255,255,255,0.1);
-                }
-
-                .filters-content {
+                /* Compact Filters Toolbar */
+                .filters-toolbar {
                     display: flex;
-                    gap: 1rem;
+                    gap: 0.5rem;
                     align-items: center;
-                    flex-wrap: wrap;
-                    justify-content: space-between;
+                    padding: 0.5rem 0.75rem;
+                    margin: 0.75rem 1rem 1rem 1rem;
+                    background: rgba(255,255,255,0.05);
+                    border: 1px solid rgba(255,255,255,0.1);
+                    border-radius: 12px;
+                    backdrop-filter: blur(8px);
                 }
 
-                .search-container {
+                .toolbar-input {
                     flex: 1;
-                    min-width: min(300px, 100%);
-                }
-
-                .search-input {
-                    width: 100%;
-                    padding: 15px 20px;
-                    font-size: 1rem;
-                    border-radius: 12px;
-                    border: 2px solid rgba(255,255,255,0.1);
-                    background-color: rgba(255,255,255,0.1);
+                    min-width: 160px;
+                    padding: 10px 12px;
+                    font-size: 0.95rem;
+                    border-radius: 10px;
+                    border: 1px solid rgba(255,255,255,0.15);
+                    background-color: rgba(255,255,255,0.08);
                     color: #fff;
                     outline: none;
-                    transition: all 0.3s ease;
-                    backdrop-filter: blur(10px);
                 }
 
-                .search-input:focus {
+                .toolbar-input:focus {
                     border-color: #007bff;
-                    box-shadow: 0 0 20px rgba(0,123,255,0.3);
                 }
 
-                .search-input::placeholder {
-                    color: rgba(255,255,255,0.7);
-                }
-
-                .category-select {
-                    padding: 15px 20px;
-                    font-size: 1rem;
-                    border-radius: 12px;
-                    border: 2px solid rgba(255,255,255,0.1);
-                    background-color: rgba(255,255,255,0.1);
+                .toolbar-select {
+                    padding: 10px 12px;
+                    font-size: 0.95rem;
+                    border-radius: 10px;
+                    border: 1px solid rgba(255,255,255,0.15);
+                    background-color: rgba(255,255,255,0.08);
                     color: #fff;
                     outline: none;
-                    cursor: pointer;
-                    min-width: min(200px, 100%);
-                    backdrop-filter: blur(10px);
+                    min-width: 180px;
                 }
 
-                .category-select option {
+                .toolbar-select option {
                     background-color: #333;
                     color: #fff;
                 }
@@ -410,14 +420,8 @@ const HomePage: React.FC = () => {
 
                 /* Responsive Design */
                 @media (max-width: 768px) {
-                    .filters-content {
-                        flex-direction: column;
-                        align-items: stretch;
-                    }
-
-                    .search-container,
-                    .category-container {
-                        width: 100%;
+                    .filters-toolbar {
+                        flex-wrap: wrap;
                     }
 
                     .products-grid {
